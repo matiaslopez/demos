@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometric Sequence Game</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .page {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            left: 100%;
+            transition: left 0.5s;
+        }
+
+        .active {
+            left: 0;
+        }
+
+        .shape {
+            width: 100px;
+            height: 100px;
+            margin: 20px;
+        }
+
+        .circle {
+            background: url('imgs/circle.png') no-repeat center center;
+            background-size: contain;
+        }      
+        
+        .square {
+            background: url('imgs/square.png') no-repeat center center;
+            background-size: contain;
+        }      
+        
+        .star {
+            background: url('imgs/star.png') no-repeat center center;
+            background-size: contain;
+        }   
+        
+        .triangle {
+            background: url('imgs/triangle.png') no-repeat center center;
+            background-size: contain;
+        }
+
+        .instructions {
+            font-size: 1.5em;
+            text-align: center;
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+
+        .page-counter {
+            font-size: 1em;
+            margin: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            border: none;
+            background-color: #007BFF;
+            color: white;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        const data = {
+            1: [
+                { shape: 'circle', count: 5 },
+                { shape: 'square', count: 3 },
+                { shape: 'triangle', count: 7 },
+                { shape: 'square', count: 4 }
+            ],
+            2: [
+                { shape: 'star', count: 2 },
+                { shape: 'circle', count: 4 }
+            ],
+            3: [], // No shapes to find
+            4: [
+                { shape: 'star', count: 6 },
+                { shape: 'square', count: 8 }
+            ]
+        };
+
+        function generateSequence() {
+            const randomKey = Math.floor(Math.random() * Object.keys(data).length) + 1;
+            console.log(randomKey);
+            console.log(data[randomKey]);
+            return data[randomKey];
+        }
+
+        function createPages(sequence) {
+            const container = document.createElement('div');
+            container.id = 'pages';
+
+            const introPage = document.createElement('div');
+            introPage.className = 'page active';
+
+            const introText = document.createElement('div');
+            introText.className = 'instructions';
+            introText.innerHTML = '¡Hola! Estamos buscando tener video de gente simulando estar en una góndola de supermercado.<br><br>';
+            introText.innerHTML +=  '<b>Intrucciones:</b> te vamos a mostrar imagenes, buscalas en el pasillo y tocalas con la mano contando hasta el número indicado simulando estar en el super.';
+            introText.innerHTML += '<br><br> ¡Gracias!';
+
+            const startButton = document.createElement('button');
+            startButton.textContent = 'Comenzar';           
+            startButton.addEventListener('click', () => nextPage(0));
+
+            introPage.appendChild(introText);
+            introPage.appendChild(startButton);
+            container.appendChild(introPage);
+
+            if (sequence.length === 0) {
+                // Página especial para secuencia vacía
+                const emptyPage = document.createElement('div');
+                emptyPage.className = 'page';
+
+                const emptyInstruction = document.createElement('div');
+                emptyInstruction.className = 'instructions';
+                emptyInstruction.innerHTML = 'Esta vez no tenés que tocar nada, pasá nomás.';
+
+                const button = document.createElement('button');
+                button.textContent = 'Siguiente';
+                button.addEventListener('click', () => nextPage(1)); // Pasar al final
+
+                emptyPage.appendChild(emptyInstruction);
+                emptyPage.appendChild(button);
+                container.appendChild(emptyPage);
+            } else {
+                sequence.forEach(({ shape, count }, index) => {
+                    const page = document.createElement('div');
+                    page.className = 'page';
+
+                    const pageCounter = document.createElement('div');
+                    pageCounter.className = 'page-counter';
+                    pageCounter.textContent = `Ítem ${index + 1} de ${sequence.length}`;
+
+                    const instruction = document.createElement('div');
+                    instruction.className = 'instructions';
+                    instruction.innerHTML = `Busca y toca <br><div class="shape ${shape}"></div><br>contando hasta ${count}`;
+
+                const button = document.createElement('button');
+                button.textContent = 'Siguiente';
+                button.addEventListener('click', () => nextPage(index + 1));
+
+                page.appendChild(pageCounter);
+                page.appendChild(instruction);
+                page.appendChild(button);
+                container.appendChild(page);
+            });
+        }
+
+            const endPage = document.createElement('div');
+            endPage.className = 'page';
+
+            const endMessage = document.createElement('div');
+            endMessage.className = 'instructions';
+            endMessage.innerHTML = 'Fin<br><br><b>¡Muchas gracias!</b><br><br>Si querés en un rato jugá de nuevo. ;-)';
+
+            endPage.appendChild(endMessage);
+            container.appendChild(endPage);
+
+            document.body.appendChild(container);
+        }
+
+        function nextPage(currentIndex) {
+            const pages = document.querySelectorAll('.page');
+            const nextIndex = currentIndex + 1;
+            if (nextIndex < pages.length) {
+                pages[nextIndex].classList.add('active');
+                if (currentIndex >= 0) {
+                    pages[currentIndex].classList.remove('active');
+                }
+            }
+        }
+        
+
+        const sequence = generateSequence();
+        createPages(sequence);
+    </script>
+</body>
+</html>
