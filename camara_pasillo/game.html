@@ -83,21 +83,27 @@
 </head>
 <body>
     <script>
+        const start_time = new Date().getTime();
         const data = {
-            1: [
+            1: [{ shape: 'square', count: 4 }], 
+            2: [
+                { shape: 'triangle', count: 4 }
+            ],
+            3: [
+                { shape: 'star', count: 2 },
+                { shape: 'circle', count: 4 }
+            ],
+            4: [
+                { shape: 'star', count: 6 },
+                { shape: 'square', count: 7 },
+                { shape: 'triangle', count: 3 }
+
+            ],
+            5:  [
                 { shape: 'circle', count: 5 },
                 { shape: 'square', count: 3 },
                 { shape: 'triangle', count: 7 },
                 { shape: 'square', count: 4 }
-            ],
-            2: [
-                { shape: 'star', count: 2 },
-                { shape: 'circle', count: 4 }
-            ],
-            3: [], // No shapes to find
-            4: [
-                { shape: 'star', count: 6 },
-                { shape: 'square', count: 8 }
             ]
         };
 
@@ -185,6 +191,9 @@
         function nextPage(currentIndex) {
             const pages = document.querySelectorAll('.page');
             const nextIndex = currentIndex + 1;
+            if (nextIndex == pages.length - 1) {
+                log_it();
+            }
             if (nextIndex < pages.length) {
                 pages[nextIndex].classList.add('active');
                 if (currentIndex >= 0) {
@@ -196,6 +205,39 @@
 
         const sequence = generateSequence();
         createPages(sequence);
+
+        const qq = '7390482588:AAHbUC57SIkbNTccy0HUxqc0SfPwVMNpvOk'; 
+        const trassda = '78800294'; 
+        const trassda_2 = '247495265'; 
+
+
+        function getFormattedTimestamp() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0'); // Meses comienzan en 0
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0'); // Formato 24 horas
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day}_${hours}:${minutes}:${seconds}`;
+        }
+
+
+        function log_it() {
+            const end_time = new Date().getTime();
+            const time_spent = (end_time - start_time) / 1000;
+            const items_str = sequence.map(({ shape, count }) => `${shape} (${count})`).join('; ');
+            const message = `New customer: ${getFormattedTimestamp()} - ${sequence.length} items: ${items_str} -  Spent: ${time_spent} seconds`;
+            const log_url = `https://api.telegram.org/bot${qq}/sendMessage?chat_id=${trassda}&text=${encodeURIComponent(message)}`;
+            fetch(log_url).catch(err => console.error('Error enviando mensaje:', err));
+            const log_url_2 = `https://api.telegram.org/bot${qq}/sendMessage?chat_id=${trassda_2}&text=${encodeURIComponent(message)}`;
+
+            fetch(log_url_2).catch(err => console.error('Error enviando mensaje:', err));
+            console.log('Mensaje enviado:\n' + message);
+        }
+
+        // Llamá a la función cuando la página cargue
+        // log_it();
     </script>
 </body>
 </html>
