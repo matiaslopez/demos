@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualización de Métricas de Píxeles</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 1.5em;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 2fr;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .section {
+            background: #f9f9f9;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .section h2 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .confusion-matrix {
+            display: grid;
+            grid-template-columns: auto 1fr 1fr auto;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .sum-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #666;
+            font-size: 0.85em;
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .matrix-cell {
+            padding: 10px;
+            text-align: center;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        .matrix-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .matrix-header {
+            background: #e0e0e0;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .tp { background: #4CAF50; color: white; }
+        .fn { background: #FF9800; color: white; }
+        .fp { background: #FF5722; color: white; }
+        .tn { background: #2196F3; color: white; }
+
+        .matrix-input {
+            width: 100%;
+            padding: 6px;
+            font-size: 1em;
+            text-align: center;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .matrix-input:focus {
+            outline: none;
+            border-color: #2196F3;
+        }
+
+        .metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .metric-item {
+            background: white;
+            padding: 8px 10px;
+            border-radius: 5px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .metric-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 3px;
+            font-size: 0.95em;
+        }
+
+        .metric-formula {
+            font-family: 'Courier New', monospace;
+            color: #666;
+            font-size: 0.75em;
+            margin-bottom: 3px;
+        }
+
+        .metric-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #2196F3;
+        }
+
+        .images-section {
+            grid-column: 3 / 4;
+            grid-row: 1 / 3;
+        }
+
+        .images-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .image-container {
+            text-align: center;
+        }
+
+        .image-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        canvas {
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .info-box {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 2px solid #2196F3;
+            font-size: 0.9em;
+            color: #333;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #2196F3;
+        }
+
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            font-size: 0.9em;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #1976D2;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8em;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 15px;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .images-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Visualización de Métricas de Conteo de Píxeles</h1>
+        
+        <div class="main-grid">
+            <div class="section">
+                <h2>Matriz de Confusión</h2>
+                <div class="confusion-matrix">
+                    <div></div>
+                    <div class="matrix-header">Pred Positivo</div>
+                    <div class="matrix-header">Pred Negativo</div>
+                    <div class="matrix-header">Σ Fila</div>
+                    
+                    <div class="matrix-label">Real Positivo</div>
+                    <div class="matrix-cell tp">
+                        <div>TP</div>
+                        <input type="number" id="tp" class="matrix-input" min="0" value="300">
+                    </div>
+                    <div class="matrix-cell fn">
+                        <div>FN</div>
+                        <input type="number" id="fn" class="matrix-input" min="0" value="200">
+                    </div>
+                    <div class="sum-cell" id="sum-row1">500</div>
+                    
+                    <div class="matrix-label">Real Negativo</div>
+                    <div class="matrix-cell fp">
+                        <div>FP</div>
+                        <input type="number" id="fp" class="matrix-input" min="0" value="100">
+                    </div>
+                    <div class="matrix-cell tn">
+                        <div>TN</div>
+                        <input type="number" id="tn" class="matrix-input" min="0" value="9400">
+                    </div>
+                    <div class="sum-cell" id="sum-row2">9500</div>
+
+                    <div class="matrix-label">Σ Columna</div>
+                    <div class="sum-cell" id="sum-col1">400</div>
+                    <div class="sum-cell" id="sum-col2">9600</div>
+                    <div class="sum-cell" id="sum-total">10000</div>
+                </div>
+                <p style="color: #666; font-size: 0.8em; text-align: center;">
+                    TP + FP + FN + TN = 10000
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>Métricas</h2>
+                <div class="metrics">
+                    <div class="metric-item">
+                        <div class="metric-name">Accuracy</div>
+                        <div class="metric-formula" id="accuracy-formula"></div>
+                        <div class="metric-value" id="accuracy-value"></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-name">Precision</div>
+                        <div class="metric-formula" id="precision-formula"></div>
+                        <div class="metric-value" id="precision-value"></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-name">Recall</div>
+                        <div class="metric-formula" id="recall-formula"></div>
+                        <div class="metric-value" id="recall-value"></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-name">F1-Score</div>
+                        <div class="metric-formula" id="f1-formula"></div>
+                        <div class="metric-value" id="f1-value"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section images-section">
+                <h2>Visualización de Píxeles</h2>
+                <div class="images-grid">
+                    <div class="image-container">
+                        <h3>Ground Truth (Real)</h3>
+                        <canvas id="groundTruthCanvas" width="100" height="100"></canvas>
+                    </div>
+                    <div class="image-container">
+                        <h3>Predicción</h3>
+                        <canvas id="predictionCanvas" width="100" height="100"></canvas>
+                    </div>
+                    <div class="image-container">
+                        <h3>Clasificación</h3>
+                        <canvas id="resultCanvas" width="100" height="100"></canvas>
+                    </div>
+                </div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #8B4513;"></div>
+                        <span>Clase Positiva</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #1E90FF;"></div>
+                        <span>Clase Negativa</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4CAF50;"></div>
+                        <span>TP</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF5722;"></div>
+                        <span>FP</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF9800;"></div>
+                        <span>FN</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #2196F3;"></div>
+                        <span>TN</span>
+                    </div>
+                </div>
+                <div class="controls">
+                    <div class="info-box">
+                        <span class="info-label">Marcado:</span> <span id="markedPercentage">0%</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label for="targetPercentage" style="font-size: 0.9em; color: #555;">% Marcado deseado:</label>
+                        <input type="number" id="targetPercentage" min="10" max="90" value="30" 
+                               style="width: 60px; padding: 5px; border: 2px solid #2196F3; border-radius: 5px; text-align: center;">
+                    </div>
+                    <button id="generateBtn">Generar Nueva Imagen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CANVAS_SIZE = 100;
+        const TOTAL_PIXELS = CANVAS_SIZE * CANVAS_SIZE;
+        const MAX_SUM = 10000;
+
+        // Canvas elements
+        const groundTruthCanvas = document.getElementById('groundTruthCanvas');
+        const predictionCanvas = document.getElementById('predictionCanvas');
+        const resultCanvas = document.getElementById('resultCanvas');
+        
+        const gtCtx = groundTruthCanvas.getContext('2d');
+        const predCtx = predictionCanvas.getContext('2d');
+        const resultCtx = resultCanvas.getContext('2d');
+
+        // Input elements
+        const tpInput = document.getElementById('tp');
+        const fnInput = document.getElementById('fn');
+        const fpInput = document.getElementById('fp');
+        const tnInput = document.getElementById('tn');
+
+        // Ground truth data
+        let groundTruthData = new Uint8Array(TOTAL_PIXELS);
+
+        // Colors
+        const COLORS = {
+            positive: [139, 69, 19],    // Brown
+            negative: [30, 144, 255],   // Blue
+            tp: [76, 175, 80],          // Green
+            fp: [255, 87, 34],          // Red-Orange
+            fn: [255, 152, 0],          // Orange
+            tn: [33, 150, 243]          // Blue
+        };
+
+        function generateGroundTruthWithPercentage(targetPercentage) {
+            const targetPositivePixels = Math.round(TOTAL_PIXELS * targetPercentage / 100);
+            
+            groundTruthData.fill(0);
+            
+            const numBlobs = Math.random() < 0.5 ? 2 : 3;
+            const pixelsPerBlob = Math.floor(targetPositivePixels / numBlobs);
+            let remainingPixels = targetPositivePixels;
+            
+            for (let b = 0; b < numBlobs && remainingPixels > 0; b++) {
+                const blobTarget = Math.min(pixelsPerBlob + (b === numBlobs - 1 ? remainingPixels % pixelsPerBlob : 0), remainingPixels);
+                
+                const centerX = Math.random() * CANVAS_SIZE;
+                const centerY = Math.random() * CANVAS_SIZE;
+                
+                // Calculate radius to approximately match target pixels
+                const radiusBase = Math.sqrt(blobTarget / Math.PI);
+                const radiusX = radiusBase * (0.9 + Math.random() * 0.4);
+                const radiusY = radiusX * (0.7 + Math.random() * 0.6);
+                const rotation = Math.random() * Math.PI;
+                
+                const candidatePixels = [];
+                
+                for (let y = 0; y < CANVAS_SIZE; y++) {
+                    for (let x = 0; x < CANVAS_SIZE; x++) {
+                        const idx = y * CANVAS_SIZE + x;
+                        if (groundTruthData[idx] === 1) continue;
+                        
+                        const dx = x - centerX;
+                        const dy = y - centerY;
+                        
+                        const rotX = dx * Math.cos(rotation) - dy * Math.sin(rotation);
+                        const rotY = dx * Math.sin(rotation) + dy * Math.cos(rotation);
+                        
+                        const dist = (rotX * rotX) / (radiusX * radiusX) + 
+                                   (rotY * rotY) / (radiusY * radiusY);
+                        
+                        if (dist <= 1) {
+                            candidatePixels.push({ idx, dist });
+                        }
+                    }
+                }
+                
+                // Sort by distance and take the closest ones for cohesion
+                candidatePixels.sort((a, b) => a.dist - b.dist);
+                const pixelsToAdd = Math.min(blobTarget, candidatePixels.length);
+                
+                for (let i = 0; i < pixelsToAdd; i++) {
+                    groundTruthData[candidatePixels[i].idx] = 1;
+                }
+                
+                remainingPixels -= pixelsToAdd;
+            }
+            
+            // Count actual positive pixels
+            let actualPositive = 0;
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                if (groundTruthData[i] === 1) actualPositive++;
+            }
+            
+            // Adjust confusion matrix to match ground truth
+            const tp = parseInt(tpInput.value) || 0;
+            const fn = parseInt(fnInput.value) || 0;
+            const fp = parseInt(fpInput.value) || 0;
+            
+            // Maintain ratios if possible
+            const currentPositive = tp + fn;
+            if (currentPositive > 0) {
+                const tpRatio = tp / currentPositive;
+                const newTP = Math.round(actualPositive * tpRatio);
+                const newFN = actualPositive - newTP;
+                
+                tpInput.value = newTP;
+                fnInput.value = newFN;
+            } else {
+                // Default split
+                tpInput.value = Math.round(actualPositive * 0.6);
+                fnInput.value = actualPositive - Math.round(actualPositive * 0.6);
+            }
+            
+            // Keep FP if possible, adjust TN
+            const maxFP = Math.min(fp, MAX_SUM - actualPositive);
+            fpInput.value = maxFP;
+            tnInput.value = TOTAL_PIXELS - actualPositive - maxFP;
+            
+            drawGroundTruth();
+            updateMarkedPercentage();
+            updatePrediction();
+        }
+
+        function updateMarkedPercentage() {
+            let positiveCount = 0;
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                if (groundTruthData[i] === 1) positiveCount++;
+            }
+            const percentage = (positiveCount / TOTAL_PIXELS * 100).toFixed(2);
+            document.getElementById('markedPercentage').textContent = percentage + '%';
+        }
+
+        function drawGroundTruth() {
+            const imageData = gtCtx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
+            
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                const color = groundTruthData[i] ? COLORS.positive : COLORS.negative;
+                imageData.data[i * 4] = color[0];
+                imageData.data[i * 4 + 1] = color[1];
+                imageData.data[i * 4 + 2] = color[2];
+                imageData.data[i * 4 + 3] = 255;
+            }
+            
+            gtCtx.putImageData(imageData, 0, 0);
+        }
+
+        function updatePrediction() {
+            const tp = parseInt(tpInput.value) || 0;
+            const fn = parseInt(fnInput.value) || 0;
+            const fp = parseInt(fpInput.value) || 0;
+            const tn = parseInt(tnInput.value) || 0;
+            
+            // Count positive and negative pixels in ground truth
+            let positivePixels = [];
+            let negativePixels = [];
+            
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                if (groundTruthData[i] === 1) {
+                    positivePixels.push(i);
+                } else {
+                    negativePixels.push(i);
+                }
+            }
+            
+            // Create prediction as blobs instead of random pixels
+            const predictionData = new Uint8Array(TOTAL_PIXELS);
+            predictionData.fill(0);
+            
+            // Special case: perfect prediction (FN=0 and FP=0)
+            if (fn === 0 && fp === 0) {
+                // Prediction should match ground truth exactly
+                for (let i = 0; i < TOTAL_PIXELS; i++) {
+                    predictionData[i] = groundTruthData[i];
+                }
+            } else {
+                // Generate TP blobs or mark all positive pixels if FN=0
+                const tpTarget = Math.min(tp, positivePixels.length);
+                if (fn === 0) {
+                    // Mark ALL positive pixels as predicted positive
+                    for (let i = 0; i < positivePixels.length; i++) {
+                        predictionData[positivePixels[i]] = 1;
+                    }
+                } else {
+                    generatePredictionBlobs(predictionData, groundTruthData, tpTarget, 1, 1);
+                }
+                
+                // Generate FP blobs or mark no negative pixels if FP=0
+                const fpTarget = Math.min(fp, negativePixels.length);
+                if (fp > 0) {
+                    generatePredictionBlobs(predictionData, groundTruthData, fpTarget, 0, 1);
+                }
+            }
+            
+            drawPrediction(predictionData);
+            drawResult(predictionData);
+            updateMetrics();
+        }
+
+        function generatePredictionBlobs(predictionData, groundTruthData, targetCount, gtValue, predValue) {
+            if (targetCount === 0) return;
+            
+            // Create fewer, larger blobs (2-4)
+            const numBlobs = Math.min(Math.max(2, Math.ceil(targetCount / 1500)), 4);
+            const pixelsPerBlob = Math.floor(targetCount / numBlobs);
+            let remainingPixels = targetCount;
+            
+            for (let b = 0; b < numBlobs && remainingPixels > 0; b++) {
+                const blobTarget = Math.min(pixelsPerBlob + (remainingPixels % numBlobs > b ? 1 : 0), remainingPixels);
+                if (blobTarget === 0) continue;
+                
+                // Find a valid center point in a region with enough available pixels
+                let centerX, centerY, centerIdx;
+                let attempts = 0;
+                let validCenter = false;
+                
+                do {
+                    centerX = Math.floor(Math.random() * CANVAS_SIZE);
+                    centerY = Math.floor(Math.random() * CANVAS_SIZE);
+                    centerIdx = centerY * CANVAS_SIZE + centerX;
+                    
+                    // Check if center is valid and has enough surrounding pixels
+                    if (groundTruthData[centerIdx] === gtValue && predictionData[centerIdx] !== predValue) {
+                        let nearbyAvailable = 0;
+                        for (let dy = -15; dy <= 15; dy++) {
+                            for (let dx = -15; dx <= 15; dx++) {
+                                const ny = centerY + dy;
+                                const nx = centerX + dx;
+                                if (ny >= 0 && ny < CANVAS_SIZE && nx >= 0 && nx < CANVAS_SIZE) {
+                                    const nIdx = ny * CANVAS_SIZE + nx;
+                                    if (groundTruthData[nIdx] === gtValue && predictionData[nIdx] !== predValue) {
+                                        nearbyAvailable++;
+                                    }
+                                }
+                            }
+                        }
+                        if (nearbyAvailable >= Math.min(blobTarget, 50)) {
+                            validCenter = true;
+                        }
+                    }
+                    attempts++;
+                } while (!validCenter && attempts < 200);
+                
+                if (!validCenter) continue;
+                
+                // Generate large elliptical blob
+                const radiusX = Math.sqrt(blobTarget / Math.PI) * (0.8 + Math.random() * 0.4);
+                const radiusY = radiusX * (0.7 + Math.random() * 0.6);
+                const rotation = Math.random() * Math.PI;
+                
+                // Collect all pixels within the ellipse
+                const blobPixels = [];
+                
+                for (let y = Math.max(0, centerY - Math.ceil(radiusY) - 5); 
+                     y < Math.min(CANVAS_SIZE, centerY + Math.ceil(radiusY) + 5); y++) {
+                    for (let x = Math.max(0, centerX - Math.ceil(radiusX) - 5); 
+                         x < Math.min(CANVAS_SIZE, centerX + Math.ceil(radiusX) + 5); x++) {
+                        const idx = y * CANVAS_SIZE + x;
+                        
+                        if (groundTruthData[idx] !== gtValue || predictionData[idx] === predValue) continue;
+                        
+                        const dx = x - centerX;
+                        const dy = y - centerY;
+                        
+                        const rotX = dx * Math.cos(rotation) - dy * Math.sin(rotation);
+                        const rotY = dx * Math.sin(rotation) + dy * Math.cos(rotation);
+                        
+                        const dist = (rotX * rotX) / (radiusX * radiusX) + 
+                                   (rotY * rotY) / (radiusY * radiusY);
+                        
+                        if (dist <= 1) {
+                            blobPixels.push(idx);
+                        }
+                    }
+                }
+                
+                // Add pixels, prioritizing those closer to center for better cohesion
+                blobPixels.sort((a, b) => {
+                    const ax = a % CANVAS_SIZE;
+                    const ay = Math.floor(a / CANVAS_SIZE);
+                    const bx = b % CANVAS_SIZE;
+                    const by = Math.floor(b / CANVAS_SIZE);
+                    const distA = (ax - centerX) * (ax - centerX) + (ay - centerY) * (ay - centerY);
+                    const distB = (bx - centerX) * (bx - centerX) + (by - centerY) * (by - centerY);
+                    return distA - distB;
+                });
+                
+                const pixelsToAdd = Math.min(blobTarget, blobPixels.length);
+                for (let i = 0; i < pixelsToAdd; i++) {
+                    predictionData[blobPixels[i]] = predValue;
+                }
+                
+                remainingPixels -= pixelsToAdd;
+            }
+        }
+
+        function drawPrediction(predictionData) {
+            const imageData = predCtx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
+            
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                const color = predictionData[i] ? COLORS.positive : COLORS.negative;
+                imageData.data[i * 4] = color[0];
+                imageData.data[i * 4 + 1] = color[1];
+                imageData.data[i * 4 + 2] = color[2];
+                imageData.data[i * 4 + 3] = 255;
+            }
+            
+            predCtx.putImageData(imageData, 0, 0);
+        }
+
+        function drawResult(predictionData) {
+            const imageData = resultCtx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
+            
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                const isPositive = groundTruthData[i] === 1;
+                const predictedPositive = predictionData[i] === 1;
+                
+                let color;
+                if (isPositive && predictedPositive) {
+                    color = COLORS.tp;
+                } else if (isPositive && !predictedPositive) {
+                    color = COLORS.fn;
+                } else if (!isPositive && predictedPositive) {
+                    color = COLORS.fp;
+                } else {
+                    color = COLORS.tn;
+                }
+                
+                imageData.data[i * 4] = color[0];
+                imageData.data[i * 4 + 1] = color[1];
+                imageData.data[i * 4 + 2] = color[2];
+                imageData.data[i * 4 + 3] = 255;
+            }
+            
+            resultCtx.putImageData(imageData, 0, 0);
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function updateMetrics() {
+            const tp = parseInt(tpInput.value) || 0;
+            const fn = parseInt(fnInput.value) || 0;
+            const fp = parseInt(fpInput.value) || 0;
+            const tn = parseInt(tnInput.value) || 0;
+            
+            // Update sums
+            document.getElementById('sum-row1').textContent = tp + fn;
+            document.getElementById('sum-row2').textContent = fp + tn;
+            document.getElementById('sum-col1').textContent = tp + fp;
+            document.getElementById('sum-col2').textContent = fn + tn;
+            document.getElementById('sum-total').textContent = tp + fn + fp + tn;
+            
+            // Accuracy
+            const accuracy = (tp + tn) / (tp + tn + fp + fn);
+            const accuracyPercent = (accuracy * 100).toFixed(0);
+            document.getElementById('accuracy-formula').textContent = 
+                `(TP + TN) / (TP + TN + FP + FN) × 100 = (${tp} + ${tn}) / (${tp} + ${tn} + ${fp} + ${fn}) × 100`;
+            document.getElementById('accuracy-value').textContent = 
+                accuracyPercent + '%';
+            
+            // Precision
+            const precision = tp / (tp + fp) || 0;
+            const precisionPercent = (precision * 100).toFixed(0);
+            document.getElementById('precision-formula').textContent = 
+                `TP / (TP + FP) × 100 = ${tp} / (${tp} + ${fp}) × 100`;
+            document.getElementById('precision-value').textContent = 
+                precisionPercent + '%';
+            
+            // Recall
+            const recall = tp / (tp + fn) || 0;
+            const recallPercent = (recall * 100).toFixed(0);
+            document.getElementById('recall-formula').textContent = 
+                `TP / (TP + FN) × 100 = ${tp} / (${tp} + ${fn}) × 100`;
+            document.getElementById('recall-value').textContent = 
+                recallPercent + '%';
+            
+            // F1-Score
+            const f1 = 2 * (precision * recall) / (precision + recall) || 0;
+            const f1Percent = (f1 * 100).toFixed(0);
+            document.getElementById('f1-formula').textContent = 
+                `2 × (Precision × Recall) / (Precision + Recall) × 100 = 2 × (${precision.toFixed(2)} × ${recall.toFixed(2)}) / (${precision.toFixed(2)} + ${recall.toFixed(2)}) × 100`;
+            document.getElementById('f1-value').textContent = 
+                f1Percent + '%';
+        }
+
+        let lastValues = { tp: 300, fn: 200, fp: 100 };
+        
+        function handleMatrixChange(changedInput) {
+            let tp = parseInt(tpInput.value) || 0;
+            let fn = parseInt(fnInput.value) || 0;
+            let fp = parseInt(fpInput.value) || 0;
+            
+            // Ensure non-negative
+            tp = Math.max(0, tp);
+            fn = Math.max(0, fn);
+            fp = Math.max(0, fp);
+            
+            // Get the number of positive pixels in ground truth
+            let positiveCount = 0;
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                if (groundTruthData[i] === 1) positiveCount++;
+            }
+            
+            const negativeCount = TOTAL_PIXELS - positiveCount;
+            
+            // Anchor by rows: TP+FN must equal positive pixels, FP+TN must equal negative pixels
+            if (changedInput === 'tp') {
+                // Adjust FN to maintain TP+FN = positiveCount
+                fn = Math.max(0, positiveCount - tp);
+                tp = Math.min(tp, positiveCount);
+            } else if (changedInput === 'fn') {
+                // Adjust TP to maintain TP+FN = positiveCount
+                tp = Math.max(0, positiveCount - fn);
+                fn = Math.min(fn, positiveCount);
+            } else if (changedInput === 'fp') {
+                // Adjust TN to maintain FP+TN = negativeCount
+                let tn = Math.max(0, negativeCount - fp);
+                fp = Math.min(fp, negativeCount);
+            } else if (changedInput === 'tn') {
+                // Adjust FP to maintain FP+TN = negativeCount
+                let tnValue = parseInt(tnInput.value) || 0;
+                tnValue = Math.max(0, tnValue);
+                fp = Math.max(0, negativeCount - tnValue);
+                tnValue = Math.min(tnValue, negativeCount);
+            }
+            
+            // Limit total to prevent overflow
+            if (tp + fn + fp > MAX_SUM) {
+                if (changedInput === 'tp' || changedInput === 'fn') {
+                    const rowSum = tp + fn;
+                    if (rowSum + fp > MAX_SUM) {
+                        fp = MAX_SUM - rowSum;
+                    }
+                } else if (changedInput === 'fp') {
+                    const availableForFP = MAX_SUM - positiveCount;
+                    fp = Math.min(fp, availableForFP);
+                }
+            }
+            
+            // Calculate TN based on the constraint
+            const tn = negativeCount - fp;
+            
+            // Update inputs
+            tpInput.value = tp;
+            fnInput.value = fn;
+            fpInput.value = fp;
+            tnInput.value = tn;
+            
+            // Store last values
+            lastValues = { tp, fn, fp };
+            
+            updatePrediction();
+        }
+
+        // Event listeners
+        tpInput.addEventListener('input', () => handleMatrixChange('tp'));
+        fnInput.addEventListener('input', () => handleMatrixChange('fn'));
+        fpInput.addEventListener('input', () => handleMatrixChange('fp'));
+        tnInput.addEventListener('input', () => handleMatrixChange('tn'));
+
+        document.getElementById('generateBtn').addEventListener('click', () => {
+            const targetPercentage = parseFloat(document.getElementById('targetPercentage').value) || 30;
+            generateGroundTruthWithPercentage(targetPercentage);
+        });
+
+        // Initialize
+        const targetPercentage = parseFloat(document.getElementById('targetPercentage').value) || 30;
+        generateGroundTruthWithPercentage(targetPercentage);
+    </script>
+</body>
+</html>
