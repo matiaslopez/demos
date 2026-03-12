@@ -141,10 +141,21 @@
             margin-bottom: 3px;
         }
 
-        .metric-value {
-            font-size: 1.1em;
+        .metric-input {
+            width: 60px;
+            padding: 4px 6px;
+            font-size: 1em;
+            text-align: center;
+            border: 2px solid #2196F3;
+            border-radius: 4px;
             font-weight: bold;
             color: #2196F3;
+        }
+
+        .metric-input:focus {
+            outline: none;
+            border-color: #1976D2;
+            background: #e3f2fd;
         }
 
         .images-section {
@@ -302,22 +313,34 @@
                     <div class="metric-item">
                         <div class="metric-name">Accuracy</div>
                         <div class="metric-formula" id="accuracy-formula"></div>
-                        <div class="metric-value" id="accuracy-value"></div>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <input type="number" id="accuracy-input" class="metric-input" min="0" max="100" step="1" value="0">
+                            <span style="font-weight: bold; color: #2196F3;">%</span>
+                        </div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-name">Precision</div>
                         <div class="metric-formula" id="precision-formula"></div>
-                        <div class="metric-value" id="precision-value"></div>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <input type="number" id="precision-input" class="metric-input" min="0" max="100" step="1" value="0">
+                            <span style="font-weight: bold; color: #2196F3;">%</span>
+                        </div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-name">Recall</div>
                         <div class="metric-formula" id="recall-formula"></div>
-                        <div class="metric-value" id="recall-value"></div>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <input type="number" id="recall-input" class="metric-input" min="0" max="100" step="1" value="0">
+                            <span style="font-weight: bold; color: #2196F3;">%</span>
+                        </div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-name">F1-Score</div>
                         <div class="metric-formula" id="f1-formula"></div>
-                        <div class="metric-value" id="f1-value"></div>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <input type="number" id="f1-input" class="metric-input" min="0" max="100" step="1" value="0">
+                            <span style="font-weight: bold; color: #2196F3;">%</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -404,37 +427,33 @@
 
         // Colors
         const COLORS = {
-            positive: [139, 69, 19],    // Brown
-            negative: [30, 144, 255],   // Blue
-            tp: [76, 175, 80],          // Green
-            fp: [255, 87, 34],          // Red-Orange
-            fn: [255, 152, 0],          // Orange
-            tn: [33, 150, 243]          // Blue
+            positive: [139, 69, 19],
+            negative: [30, 144, 255],
+            tp: [76, 175, 80],
+            fp: [255, 87, 34],
+            fn: [255, 152, 0],
+            tn: [33, 150, 243]
         };
 
         function generateGroundTruthWithPercentage(targetPercentage) {
             const targetPositivePixels = Math.round(TOTAL_PIXELS * targetPercentage / 100);
-            
             groundTruthData.fill(0);
             
             const numBlobs = Math.random() < 0.5 ? 2 : 3;
-            const pixelsPerBlob = Math.floor(targetPositivePixels / numBlobs);
-            let remainingPixels = targetPositivePixels;
             
-            for (let b = 0; b < numBlobs && remainingPixels > 0; b++) {
-                const blobTarget = Math.min(pixelsPerBlob + (b === numBlobs - 1 ? remainingPixels % pixelsPerBlob : 0), remainingPixels);
-                
-                const centerX = Math.random() * CANVAS_SIZE;
-                const centerY = Math.random() * CANVAS_SIZE;
-                
-                // Calculate radius to approximately match target pixels
-                const radiusBase = Math.sqrt(blobTarget / Math.PI);
-                const radiusX = radiusBase * (0.9 + Math.random() * 0.4);
-                const radiusY = radiusX * (0.7 + Math.random() * 0.6);
+            // Calculate radius to match target pixels
+            const totalArea = targetPositivePixels;
+            const areaPerBlob = totalArea / numBlobs;
+            const baseRadius = Math.sqrt(areaPerBlob / Math.PI);
+            
+            for (let b = 0; b < numBlobs; b++) {
+                const centerX = 25 + Math.random() * (CANVAS_SIZE - 50);
+                const centerY = 25 + Math.random() * (CANVAS_SIZE - 50);
+                const radiusX = baseRadius * (1.0 + Math.random() * 0.3);
+                const radiusY = radiusX * (0.85 + Math.random() * 0.3);
                 const rotation = Math.random() * Math.PI;
                 
-                const candidatePixels = [];
-                
+                // Create solid blob - fill all pixels within ellipse
                 for (let y = 0; y < CANVAS_SIZE; y++) {
                     for (let x = 0; x < CANVAS_SIZE; x++) {
                         const idx = y * CANVAS_SIZE + x;
@@ -442,28 +461,15 @@
                         
                         const dx = x - centerX;
                         const dy = y - centerY;
-                        
                         const rotX = dx * Math.cos(rotation) - dy * Math.sin(rotation);
                         const rotY = dx * Math.sin(rotation) + dy * Math.cos(rotation);
+                        const dist = (rotX * rotX) / (radiusX * radiusX) + (rotY * rotY) / (radiusY * radiusY);
                         
-                        const dist = (rotX * rotX) / (radiusX * radiusX) + 
-                                   (rotY * rotY) / (radiusY * radiusY);
-                        
-                        if (dist <= 1) {
-                            candidatePixels.push({ idx, dist });
+                        if (dist <= 1.0) {
+                            groundTruthData[idx] = 1;
                         }
                     }
                 }
-                
-                // Sort by distance and take the closest ones for cohesion
-                candidatePixels.sort((a, b) => a.dist - b.dist);
-                const pixelsToAdd = Math.min(blobTarget, candidatePixels.length);
-                
-                for (let i = 0; i < pixelsToAdd; i++) {
-                    groundTruthData[candidatePixels[i].idx] = 1;
-                }
-                
-                remainingPixels -= pixelsToAdd;
             }
             
             // Count actual positive pixels
@@ -472,27 +478,22 @@
                 if (groundTruthData[i] === 1) actualPositive++;
             }
             
-            // Adjust confusion matrix to match ground truth
             const tp = parseInt(tpInput.value) || 0;
             const fn = parseInt(fnInput.value) || 0;
             const fp = parseInt(fpInput.value) || 0;
-            
-            // Maintain ratios if possible
             const currentPositive = tp + fn;
+            
             if (currentPositive > 0) {
                 const tpRatio = tp / currentPositive;
                 const newTP = Math.round(actualPositive * tpRatio);
                 const newFN = actualPositive - newTP;
-                
                 tpInput.value = newTP;
                 fnInput.value = newFN;
             } else {
-                // Default split
                 tpInput.value = Math.round(actualPositive * 0.6);
                 fnInput.value = actualPositive - Math.round(actualPositive * 0.6);
             }
             
-            // Keep FP if possible, adjust TN
             const maxFP = Math.min(fp, MAX_SUM - actualPositive);
             fpInput.value = maxFP;
             tnInput.value = TOTAL_PIXELS - actualPositive - maxFP;
@@ -513,7 +514,6 @@
 
         function drawGroundTruth() {
             const imageData = gtCtx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
-            
             for (let i = 0; i < TOTAL_PIXELS; i++) {
                 const color = groundTruthData[i] ? COLORS.positive : COLORS.negative;
                 imageData.data[i * 4] = color[0];
@@ -521,7 +521,6 @@
                 imageData.data[i * 4 + 2] = color[2];
                 imageData.data[i * 4 + 3] = 255;
             }
-            
             gtCtx.putImageData(imageData, 0, 0);
         }
 
@@ -529,58 +528,433 @@
             const tp = parseInt(tpInput.value) || 0;
             const fn = parseInt(fnInput.value) || 0;
             const fp = parseInt(fpInput.value) || 0;
-            const tn = parseInt(tnInput.value) || 0;
             
-            // Count positive and negative pixels in ground truth
             let positivePixels = [];
             let negativePixels = [];
-            
             for (let i = 0; i < TOTAL_PIXELS; i++) {
-                if (groundTruthData[i] === 1) {
-                    positivePixels.push(i);
-                } else {
-                    negativePixels.push(i);
-                }
+                if (groundTruthData[i] === 1) positivePixels.push(i);
+                else negativePixels.push(i);
             }
             
-            // Create prediction as blobs instead of random pixels
-            const predictionData = new Uint8Array(TOTAL_PIXELS);
-            predictionData.fill(0);
+            const maxAttempts = 3;
+            let attempt = 0;
+            let predictionData = null;
+            let success = false;
             
-            // Special case: perfect prediction (FN=0 and FP=0)
-            if (fn === 0 && fp === 0) {
-                // Prediction should match ground truth exactly
-                for (let i = 0; i < TOTAL_PIXELS; i++) {
-                    predictionData[i] = groundTruthData[i];
+            while (attempt < maxAttempts && !success) {
+                attempt++;
+                if (attempt > 1) {
+                    console.log(`Retry attempt ${attempt}/${maxAttempts}...`);
                 }
-            } else {
-                // Generate TP blobs or mark all positive pixels if FN=0
+                
+                predictionData = new Uint8Array(TOTAL_PIXELS);
+                predictionData.fill(0);
+                
+                if (fn === 0 && fp === 0) {
+                    for (let i = 0; i < TOTAL_PIXELS; i++) {
+                        predictionData[i] = groundTruthData[i];
+                    }
+                } else {
                 const tpTarget = Math.min(tp, positivePixels.length);
+                const fnTarget = Math.min(fn, positivePixels.length);
+                
                 if (fn === 0) {
-                    // Mark ALL positive pixels as predicted positive
                     for (let i = 0; i < positivePixels.length; i++) {
                         predictionData[positivePixels[i]] = 1;
                     }
+                } else if (fnTarget < 200) {
+                    // For FN < 200, mark all as positive then unmark FN pixels in clusters
+                    for (let i = 0; i < positivePixels.length; i++) {
+                        predictionData[positivePixels[i]] = 1;
+                    }
+                    selectPixelsInClusters(predictionData, positivePixels, fnTarget, 0);
+                } else if (tpTarget < 200) {
+                    // For TP < 200, mark TP pixels in clusters
+                    selectPixelsInClusters(predictionData, positivePixels, tpTarget, 1);
                 } else {
+                    // For both large, use blobs but ensure exact count
                     generatePredictionBlobs(predictionData, groundTruthData, tpTarget, 1, 1);
+                    
+                    // Count actual TP and adjust if needed
+                    let actualTP = 0;
+                    for (let i = 0; i < positivePixels.length; i++) {
+                        if (predictionData[positivePixels[i]] === 1) actualTP++;
+                    }
+                    
+                    if (actualTP < tpTarget) {
+                        // Need to add more TP - prioritize pixels near existing blobs
+                        const candidates = [];
+                        for (let i = 0; i < positivePixels.length; i++) {
+                            const idx = positivePixels[i];
+                            if (predictionData[idx] === 0) {
+                                // Count neighbors that are already TP
+                                let neighborCount = 0;
+                                const x = idx % CANVAS_SIZE;
+                                const y = Math.floor(idx / CANVAS_SIZE);
+                                for (let dy = -2; dy <= 2; dy++) {
+                                    for (let dx = -2; dx <= 2; dx++) {
+                                        const nx = x + dx;
+                                        const ny = y + dy;
+                                        if (nx >= 0 && nx < CANVAS_SIZE && ny >= 0 && ny < CANVAS_SIZE) {
+                                            const nIdx = ny * CANVAS_SIZE + nx;
+                                            if (predictionData[nIdx] === 1 && groundTruthData[nIdx] === 1) {
+                                                neighborCount++;
+                                            }
+                                        }
+                                    }
+                                }
+                                candidates.push({ idx, neighborCount });
+                            }
+                        }
+                        // Sort by neighbor count (descending) to prioritize pixels near existing blobs
+                        candidates.sort((a, b) => b.neighborCount - a.neighborCount);
+                        const toAdd = Math.min(tpTarget - actualTP, candidates.length);
+                        for (let i = 0; i < toAdd; i++) {
+                            predictionData[candidates[i].idx] = 1;
+                        }
+                    } else if (actualTP > tpTarget) {
+                        // Need to remove some TP - prioritize isolated pixels
+                        const candidates = [];
+                        for (let i = 0; i < positivePixels.length; i++) {
+                            const idx = positivePixels[i];
+                            if (predictionData[idx] === 1) {
+                                // Count neighbors that are also TP
+                                let neighborCount = 0;
+                                const x = idx % CANVAS_SIZE;
+                                const y = Math.floor(idx / CANVAS_SIZE);
+                                for (let dy = -1; dy <= 1; dy++) {
+                                    for (let dx = -1; dx <= 1; dx++) {
+                                        if (dx === 0 && dy === 0) continue;
+                                        const nx = x + dx;
+                                        const ny = y + dy;
+                                        if (nx >= 0 && nx < CANVAS_SIZE && ny >= 0 && ny < CANVAS_SIZE) {
+                                            const nIdx = ny * CANVAS_SIZE + nx;
+                                            if (predictionData[nIdx] === 1 && groundTruthData[nIdx] === 1) {
+                                                neighborCount++;
+                                            }
+                                        }
+                                    }
+                                }
+                                candidates.push({ idx, neighborCount });
+                            }
+                        }
+                        // Sort by neighbor count (ascending) to prioritize removing isolated pixels
+                        candidates.sort((a, b) => a.neighborCount - b.neighborCount);
+                        const toRemove = Math.min(actualTP - tpTarget, candidates.length);
+                        for (let i = 0; i < toRemove; i++) {
+                            predictionData[candidates[i].idx] = 0;
+                        }
+                    }
                 }
                 
-                // Generate FP blobs or mark no negative pixels if FP=0
                 const fpTarget = Math.min(fp, negativePixels.length);
-                if (fp > 0) {
-                    generatePredictionBlobs(predictionData, groundTruthData, fpTarget, 0, 1);
+                if (fpTarget > 0) {
+                    if (fpTarget < 200) {
+                        // For small FP, use clustered selection
+                        selectPixelsInClusters(predictionData, negativePixels, fpTarget, 1);
+                    } else {
+                        // For large FP, use blobs but ensure exact count
+                        generatePredictionBlobs(predictionData, groundTruthData, fpTarget, 0, 1);
+                        
+                        // Count actual FP and adjust if needed
+                        let actualFP = 0;
+                        for (let i = 0; i < negativePixels.length; i++) {
+                            if (predictionData[negativePixels[i]] === 1) actualFP++;
+                        }
+                        
+                        if (actualFP < fpTarget) {
+                            // Need to add more FP - prioritize pixels near existing FP blobs
+                            const candidates = [];
+                            for (let i = 0; i < negativePixels.length; i++) {
+                                const idx = negativePixels[i];
+                                if (predictionData[idx] === 0) {
+                                    // Count neighbors that are already FP
+                                    let neighborCount = 0;
+                                    const x = idx % CANVAS_SIZE;
+                                    const y = Math.floor(idx / CANVAS_SIZE);
+                                    for (let dy = -2; dy <= 2; dy++) {
+                                        for (let dx = -2; dx <= 2; dx++) {
+                                            const nx = x + dx;
+                                            const ny = y + dy;
+                                            if (nx >= 0 && nx < CANVAS_SIZE && ny >= 0 && ny < CANVAS_SIZE) {
+                                                const nIdx = ny * CANVAS_SIZE + nx;
+                                                if (predictionData[nIdx] === 1 && groundTruthData[nIdx] === 0) {
+                                                    neighborCount++;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    candidates.push({ idx, neighborCount });
+                                }
+                            }
+                            // Sort by neighbor count (descending) to prioritize pixels near existing blobs
+                            candidates.sort((a, b) => b.neighborCount - a.neighborCount);
+                            const toAdd = Math.min(fpTarget - actualFP, candidates.length);
+                            for (let i = 0; i < toAdd; i++) {
+                                predictionData[candidates[i].idx] = 1;
+                            }
+                        } else if (actualFP > fpTarget) {
+                            // Need to remove some FP - prioritize isolated pixels
+                            const candidates = [];
+                            for (let i = 0; i < negativePixels.length; i++) {
+                                const idx = negativePixels[i];
+                                if (predictionData[idx] === 1) {
+                                    // Count neighbors that are also FP
+                                    let neighborCount = 0;
+                                    const x = idx % CANVAS_SIZE;
+                                    const y = Math.floor(idx / CANVAS_SIZE);
+                                    for (let dy = -1; dy <= 1; dy++) {
+                                        for (let dx = -1; dx <= 1; dx++) {
+                                            if (dx === 0 && dy === 0) continue;
+                                            const nx = x + dx;
+                                            const ny = y + dy;
+                                            if (nx >= 0 && nx < CANVAS_SIZE && ny >= 0 && ny < CANVAS_SIZE) {
+                                                const nIdx = ny * CANVAS_SIZE + nx;
+                                                if (predictionData[nIdx] === 1 && groundTruthData[nIdx] === 0) {
+                                                    neighborCount++;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    candidates.push({ idx, neighborCount });
+                                }
+                            }
+                            // Sort by neighbor count (ascending) to prioritize removing isolated pixels
+                            candidates.sort((a, b) => a.neighborCount - b.neighborCount);
+                            const toRemove = Math.min(actualFP - fpTarget, candidates.length);
+                            for (let i = 0; i < toRemove; i++) {
+                                predictionData[candidates[i].idx] = 0;
+                            }
+                        }
+                    }
                 }
             }
+                
+                // Validate pixel counts
+                let actualTP = 0, actualFN = 0, actualFP = 0, actualTN = 0;
+                for (let i = 0; i < TOTAL_PIXELS; i++) {
+                    const isPositive = groundTruthData[i] === 1;
+                    const predictedPositive = predictionData[i] === 1;
+                    if (isPositive && predictedPositive) actualTP++;
+                    else if (isPositive && !predictedPositive) actualFN++;
+                    else if (!isPositive && predictedPositive) actualFP++;
+                    else actualTN++;
+                }
+                
+                // Check if counts match (with tolerance of 10 pixels)
+                const tolerance = 100;
+                const tpDiff = Math.abs(actualTP - tp);
+                const fnDiff = Math.abs(actualFN - fn);
+                const fpDiff = Math.abs(actualFP - fp);
+                const tnDiff = Math.abs(actualTN - parseInt(tnInput.value));
+                
+                if (tpDiff <= tolerance && fnDiff <= tolerance && fpDiff <= tolerance && tnDiff <= tolerance) {
+                    success = true;
+                    if (tpDiff === 0 && fnDiff === 0 && fpDiff === 0 && tnDiff === 0) {
+                        console.log('✓ Pixel counts match perfectly!');
+                    } else {
+                        console.log(`✓ Pixel counts match within tolerance (±${tolerance}px)`);
+                        console.log(`  Differences: TP=${tpDiff}, FN=${fnDiff}, FP=${fpDiff}, TN=${tnDiff}`);
+                    }
+                } else if (attempt < maxAttempts) {
+                    console.log(`✗ Mismatch - Expected: TP=${tp}, FN=${fn}, FP=${fp} | Got: TP=${actualTP}, FN=${actualFN}, FP=${actualFP}`);
+                    console.log(`  Differences: TP=${tpDiff}, FN=${fnDiff}, FP=${fpDiff} (tolerance: ±${tolerance}px)`);
+                }
+            }
+            
+            if (!success) {
+                console.error('Failed to generate matching pixel counts after 3 attempts. Clearing display.');
+                predictionData = new Uint8Array(TOTAL_PIXELS);
+                predCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+                resultCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+                return;
+            }
+            
+            // Merge components if there are more than 6
+            mergeComponentsIfNeeded(predictionData);
             
             drawPrediction(predictionData);
             drawResult(predictionData);
             updateMetrics();
         }
 
+        function findConnectedComponents(data, value) {
+            const visited = new Uint8Array(TOTAL_PIXELS);
+            const components = [];
+            
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                if (data[i] === value && !visited[i]) {
+                    const component = [];
+                    const queue = [i];
+                    visited[i] = 1;
+                    
+                    while (queue.length > 0) {
+                        const idx = queue.shift();
+                        component.push(idx);
+                        
+                        const x = idx % CANVAS_SIZE;
+                        const y = Math.floor(idx / CANVAS_SIZE);
+                        
+                        for (let dy = -1; dy <= 1; dy++) {
+                            for (let dx = -1; dx <= 1; dx++) {
+                                if (dx === 0 && dy === 0) continue;
+                                const nx = x + dx;
+                                const ny = y + dy;
+                                if (nx >= 0 && nx < CANVAS_SIZE && ny >= 0 && ny < CANVAS_SIZE) {
+                                    const nIdx = ny * CANVAS_SIZE + nx;
+                                    if (data[nIdx] === value && !visited[nIdx]) {
+                                        visited[nIdx] = 1;
+                                        queue.push(nIdx);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    components.push(component);
+                }
+            }
+            
+            return components;
+        }
+
+        function mergeComponentsIfNeeded(predictionData) {
+            const components = findConnectedComponents(predictionData, 1);
+            
+            if (components.length <= 6) {
+                console.log(`${components.length} components found (≤6, no merging needed)`);
+                return;
+            }
+            
+            console.log(`${components.length} components found (>6, merging smaller ones...)`);
+            
+            // Sort by size (descending)
+            components.sort((a, b) => b.length - a.length);
+            
+            // Keep the largest 2-3 components, merge the rest
+            const targetComponents = components.length > 10 ? 2 : 3;
+            const toKeep = components.slice(0, targetComponents);
+            const toMerge = components.slice(targetComponents);
+            
+            // For each small component, find nearest large component and merge
+            for (const smallComp of toMerge) {
+                let minDist = Infinity;
+                let nearestCompIdx = 0;
+                
+                // Find center of small component
+                let sumX = 0, sumY = 0;
+                for (const idx of smallComp) {
+                    sumX += idx % CANVAS_SIZE;
+                    sumY += Math.floor(idx / CANVAS_SIZE);
+                }
+                const centerX = sumX / smallComp.length;
+                const centerY = sumY / smallComp.length;
+                
+                // Find nearest large component
+                for (let i = 0; i < toKeep.length; i++) {
+                    let compSumX = 0, compSumY = 0;
+                    for (const idx of toKeep[i]) {
+                        compSumX += idx % CANVAS_SIZE;
+                        compSumY += Math.floor(idx / CANVAS_SIZE);
+                    }
+                    const compCenterX = compSumX / toKeep[i].length;
+                    const compCenterY = compSumY / toKeep[i].length;
+                    
+                    const dist = Math.sqrt(
+                        (centerX - compCenterX) ** 2 + 
+                        (centerY - compCenterY) ** 2
+                    );
+                    
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestCompIdx = i;
+                    }
+                }
+                
+                // Create a path from small component to large component
+                const targetComp = toKeep[nearestCompIdx];
+                
+                // Find closest pixel in target component
+                let minPixelDist = Infinity;
+                let closestTargetPixel = targetComp[0];
+                
+                for (const smallIdx of smallComp) {
+                    const sx = smallIdx % CANVAS_SIZE;
+                    const sy = Math.floor(smallIdx / CANVAS_SIZE);
+                    
+                    for (const targetIdx of targetComp) {
+                        const tx = targetIdx % CANVAS_SIZE;
+                        const ty = Math.floor(targetIdx / CANVAS_SIZE);
+                        const dist = Math.sqrt((sx - tx) ** 2 + (sy - ty) ** 2);
+                        
+                        if (dist < minPixelDist) {
+                            minPixelDist = dist;
+                            closestTargetPixel = targetIdx;
+                        }
+                    }
+                }
+                
+                // Draw a connecting path using Bresenham-like algorithm
+                const startIdx = smallComp[Math.floor(smallComp.length / 2)];
+                const endIdx = closestTargetPixel;
+                
+                const x0 = startIdx % CANVAS_SIZE;
+                const y0 = Math.floor(startIdx / CANVAS_SIZE);
+                const x1 = endIdx % CANVAS_SIZE;
+                const y1 = Math.floor(endIdx / CANVAS_SIZE);
+                
+                const dx = Math.abs(x1 - x0);
+                const dy = Math.abs(y1 - y0);
+                const sx = x0 < x1 ? 1 : -1;
+                const sy = y0 < y1 ? 1 : -1;
+                let err = dx - dy;
+                
+                let x = x0, y = y0;
+                while (true) {
+                    const idx = y * CANVAS_SIZE + x;
+                    if (groundTruthData[idx] === 1) {
+                        predictionData[idx] = 1;
+                    }
+                    
+                    if (x === x1 && y === y1) break;
+                    
+                    const e2 = 2 * err;
+                    if (e2 > -dy) {
+                        err -= dy;
+                        x += sx;
+                    }
+                    if (e2 < dx) {
+                        err += dx;
+                        y += sy;
+                    }
+                }
+            }
+            
+            const finalComponents = findConnectedComponents(predictionData, 1);
+            console.log(`After merging: ${finalComponents.length} components`);
+        }
+
         function generatePredictionBlobs(predictionData, groundTruthData, targetCount, gtValue, predValue) {
             if (targetCount === 0) return;
             
-            // Create fewer, larger blobs (2-4)
+            if (targetCount < 50) {
+                const availablePixels = [];
+                for (let i = 0; i < TOTAL_PIXELS; i++) {
+                    if (groundTruthData[i] === gtValue && predictionData[i] !== predValue) {
+                        availablePixels.push(i);
+                    }
+                }
+                for (let i = availablePixels.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [availablePixels[i], availablePixels[j]] = [availablePixels[j], availablePixels[i]];
+                }
+                const pixelsToAdd = Math.min(targetCount, availablePixels.length);
+                for (let i = 0; i < pixelsToAdd; i++) {
+                    predictionData[availablePixels[i]] = predValue;
+                }
+                return;
+            }
+            
             const numBlobs = Math.min(Math.max(2, Math.ceil(targetCount / 1500)), 4);
             const pixelsPerBlob = Math.floor(targetCount / numBlobs);
             let remainingPixels = targetCount;
@@ -589,7 +963,6 @@
                 const blobTarget = Math.min(pixelsPerBlob + (remainingPixels % numBlobs > b ? 1 : 0), remainingPixels);
                 if (blobTarget === 0) continue;
                 
-                // Find a valid center point in a region with enough available pixels
                 let centerX, centerY, centerIdx;
                 let attempts = 0;
                 let validCenter = false;
@@ -599,7 +972,6 @@
                     centerY = Math.floor(Math.random() * CANVAS_SIZE);
                     centerIdx = centerY * CANVAS_SIZE + centerX;
                     
-                    // Check if center is valid and has enough surrounding pixels
                     if (groundTruthData[centerIdx] === gtValue && predictionData[centerIdx] !== predValue) {
                         let nearbyAvailable = 0;
                         for (let dy = -15; dy <= 15; dy++) {
@@ -623,43 +995,30 @@
                 
                 if (!validCenter) continue;
                 
-                // Generate large elliptical blob
                 const radiusX = Math.sqrt(blobTarget / Math.PI) * (0.8 + Math.random() * 0.4);
                 const radiusY = radiusX * (0.7 + Math.random() * 0.6);
                 const rotation = Math.random() * Math.PI;
-                
-                // Collect all pixels within the ellipse
                 const blobPixels = [];
                 
-                for (let y = Math.max(0, centerY - Math.ceil(radiusY) - 5); 
+                for (let y = Math.max(0, centerY - Math.ceil(radiusY) - 5);
                      y < Math.min(CANVAS_SIZE, centerY + Math.ceil(radiusY) + 5); y++) {
-                    for (let x = Math.max(0, centerX - Math.ceil(radiusX) - 5); 
+                    for (let x = Math.max(0, centerX - Math.ceil(radiusX) - 5);
                          x < Math.min(CANVAS_SIZE, centerX + Math.ceil(radiusX) + 5); x++) {
                         const idx = y * CANVAS_SIZE + x;
-                        
                         if (groundTruthData[idx] !== gtValue || predictionData[idx] === predValue) continue;
                         
                         const dx = x - centerX;
                         const dy = y - centerY;
-                        
                         const rotX = dx * Math.cos(rotation) - dy * Math.sin(rotation);
                         const rotY = dx * Math.sin(rotation) + dy * Math.cos(rotation);
-                        
-                        const dist = (rotX * rotX) / (radiusX * radiusX) + 
-                                   (rotY * rotY) / (radiusY * radiusY);
-                        
-                        if (dist <= 1) {
-                            blobPixels.push(idx);
-                        }
+                        const dist = (rotX * rotX) / (radiusX * radiusX) + (rotY * rotY) / (radiusY * radiusY);
+                        if (dist <= 1) blobPixels.push(idx);
                     }
                 }
                 
-                // Add pixels, prioritizing those closer to center for better cohesion
                 blobPixels.sort((a, b) => {
-                    const ax = a % CANVAS_SIZE;
-                    const ay = Math.floor(a / CANVAS_SIZE);
-                    const bx = b % CANVAS_SIZE;
-                    const by = Math.floor(b / CANVAS_SIZE);
+                    const ax = a % CANVAS_SIZE, ay = Math.floor(a / CANVAS_SIZE);
+                    const bx = b % CANVAS_SIZE, by = Math.floor(b / CANVAS_SIZE);
                     const distA = (ax - centerX) * (ax - centerX) + (ay - centerY) * (ay - centerY);
                     const distB = (bx - centerX) * (bx - centerX) + (by - centerY) * (by - centerY);
                     return distA - distB;
@@ -669,14 +1028,12 @@
                 for (let i = 0; i < pixelsToAdd; i++) {
                     predictionData[blobPixels[i]] = predValue;
                 }
-                
                 remainingPixels -= pixelsToAdd;
             }
         }
 
         function drawPrediction(predictionData) {
             const imageData = predCtx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
-            
             for (let i = 0; i < TOTAL_PIXELS; i++) {
                 const color = predictionData[i] ? COLORS.positive : COLORS.negative;
                 imageData.data[i * 4] = color[0];
@@ -684,35 +1041,42 @@
                 imageData.data[i * 4 + 2] = color[2];
                 imageData.data[i * 4 + 3] = 255;
             }
-            
             predCtx.putImageData(imageData, 0, 0);
         }
 
         function drawResult(predictionData) {
             const imageData = resultCtx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
+            let actualTP = 0, actualFN = 0, actualFP = 0, actualTN = 0;
             
             for (let i = 0; i < TOTAL_PIXELS; i++) {
                 const isPositive = groundTruthData[i] === 1;
                 const predictedPositive = predictionData[i] === 1;
-                
                 let color;
-                if (isPositive && predictedPositive) {
-                    color = COLORS.tp;
-                } else if (isPositive && !predictedPositive) {
-                    color = COLORS.fn;
-                } else if (!isPositive && predictedPositive) {
-                    color = COLORS.fp;
-                } else {
-                    color = COLORS.tn;
-                }
+                
+                if (isPositive && predictedPositive) { color = COLORS.tp; actualTP++; }
+                else if (isPositive && !predictedPositive) { color = COLORS.fn; actualFN++; }
+                else if (!isPositive && predictedPositive) { color = COLORS.fp; actualFP++; }
+                else { color = COLORS.tn; actualTN++; }
                 
                 imageData.data[i * 4] = color[0];
                 imageData.data[i * 4 + 1] = color[1];
                 imageData.data[i * 4 + 2] = color[2];
                 imageData.data[i * 4 + 3] = 255;
             }
-            
             resultCtx.putImageData(imageData, 0, 0);
+            
+            // Count components in ground truth and prediction
+            const gtComponents = findConnectedComponents(groundTruthData, 1);
+            const predComponents = findConnectedComponents(predictionData, 1);
+            
+            console.log('=== DEBUG INFO ===');
+            console.log('Matrix values: TP=' + tpInput.value + ', FN=' + fnInput.value + ', FP=' + fpInput.value + ', TN=' + tnInput.value);
+            console.log('Actual pixels: TP=' + actualTP + ', FN=' + actualFN + ', FP=' + actualFP + ', TN=' + actualTN);
+            let positiveGT = 0;
+            for (let i = 0; i < TOTAL_PIXELS; i++) if (groundTruthData[i] === 1) positiveGT++;
+            console.log('Ground Truth: Positive=' + positiveGT + ', Negative=' + (TOTAL_PIXELS - positiveGT));
+            console.log('Connected Components: Ground Truth=' + gtComponents.length + ', Prediction=' + predComponents.length);
+            console.log('==================');
         }
 
         function shuffle(array) {
@@ -722,94 +1086,200 @@
             }
         }
 
+        function selectPixelsInClusters(predictionData, pixelIndices, targetCount, setValue) {
+            if (targetCount === 0) return;
+            
+            const numClusters = targetCount < 50 ? 1 : Math.min(2, Math.ceil(targetCount / 100));
+            const pixelsPerCluster = Math.floor(targetCount / numClusters);
+            let remaining = targetCount;
+            
+            for (let c = 0; c < numClusters && remaining > 0; c++) {
+                const clusterSize = (c === numClusters - 1) ? remaining : Math.min(pixelsPerCluster, remaining);
+                const startIdx = pixelIndices[Math.floor(Math.random() * pixelIndices.length)];
+                const selected = new Set();
+                const queue = [startIdx];
+                selected.add(startIdx);
+                
+                while (selected.size < clusterSize && queue.length > 0) {
+                    const currentIdx = queue.shift();
+                    
+                    if (setValue === 1 && predictionData[currentIdx] === 0) {
+                        predictionData[currentIdx] = 1;
+                    } else if (setValue === 0 && predictionData[currentIdx] === 1) {
+                        predictionData[currentIdx] = 0;
+                    }
+                    
+                    const x = currentIdx % CANVAS_SIZE;
+                    const y = Math.floor(currentIdx / CANVAS_SIZE);
+                    const neighbors = [];
+                    
+                    for (let dy = -2; dy <= 2; dy++) {
+                        for (let dx = -2; dx <= 2; dx++) {
+                            if (dx === 0 && dy === 0) continue;
+                            const nx = x + dx;
+                            const ny = y + dy;
+                            if (nx >= 0 && nx < CANVAS_SIZE && ny >= 0 && ny < CANVAS_SIZE) {
+                                const nIdx = ny * CANVAS_SIZE + nx;
+                                if (pixelIndices.includes(nIdx) && !selected.has(nIdx)) {
+                                    const dist = Math.sqrt(dx * dx + dy * dy);
+                                    neighbors.push({ idx: nIdx, dist });
+                                }
+                            }
+                        }
+                    }
+                    
+                    neighbors.sort((a, b) => a.dist - b.dist);
+                    for (let i = 0; i < Math.min(3, neighbors.length) && selected.size < clusterSize; i++) {
+                        if (!selected.has(neighbors[i].idx)) {
+                            selected.add(neighbors[i].idx);
+                            queue.push(neighbors[i].idx);
+                        }
+                    }
+                }
+                
+                remaining -= selected.size;
+            }
+        }
+
+        let updatingFromMetric = false;
+
         function updateMetrics() {
+            if (updatingFromMetric) return;
+            
             const tp = parseInt(tpInput.value) || 0;
             const fn = parseInt(fnInput.value) || 0;
             const fp = parseInt(fpInput.value) || 0;
             const tn = parseInt(tnInput.value) || 0;
             
-            // Update sums
             document.getElementById('sum-row1').textContent = tp + fn;
             document.getElementById('sum-row2').textContent = fp + tn;
             document.getElementById('sum-col1').textContent = tp + fp;
             document.getElementById('sum-col2').textContent = fn + tn;
             document.getElementById('sum-total').textContent = tp + fn + fp + tn;
             
-            // Accuracy
             const accuracy = (tp + tn) / (tp + tn + fp + fn);
             const accuracyPercent = (accuracy * 100).toFixed(0);
             document.getElementById('accuracy-formula').textContent = 
-                `(TP + TN) / (TP + TN + FP + FN) × 100 = (${tp} + ${tn}) / (${tp} + ${tn} + ${fp} + ${fn}) × 100`;
-            document.getElementById('accuracy-value').textContent = 
-                accuracyPercent + '%';
+                `(TP + TN) / Total × 100 = (${tp} + ${tn}) / ${tp + tn + fp + fn} × 100`;
+            document.getElementById('accuracy-input').value = accuracyPercent;
             
-            // Precision
             const precision = tp / (tp + fp) || 0;
             const precisionPercent = (precision * 100).toFixed(0);
             document.getElementById('precision-formula').textContent = 
-                `TP / (TP + FP) × 100 = ${tp} / (${tp} + ${fp}) × 100`;
-            document.getElementById('precision-value').textContent = 
-                precisionPercent + '%';
+                `TP / (TP + FP) × 100 = ${tp} / ${tp + fp} × 100`;
+            document.getElementById('precision-input').value = precisionPercent;
             
-            // Recall
             const recall = tp / (tp + fn) || 0;
             const recallPercent = (recall * 100).toFixed(0);
             document.getElementById('recall-formula').textContent = 
-                `TP / (TP + FN) × 100 = ${tp} / (${tp} + ${fn}) × 100`;
-            document.getElementById('recall-value').textContent = 
-                recallPercent + '%';
+                `TP / (TP + FN) × 100 = ${tp} / ${tp + fn} × 100`;
+            document.getElementById('recall-input').value = recallPercent;
             
-            // F1-Score
             const f1 = 2 * (precision * recall) / (precision + recall) || 0;
             const f1Percent = (f1 * 100).toFixed(0);
             document.getElementById('f1-formula').textContent = 
-                `2 × (Precision × Recall) / (Precision + Recall) × 100 = 2 × (${precision.toFixed(2)} × ${recall.toFixed(2)}) / (${precision.toFixed(2)} + ${recall.toFixed(2)}) × 100`;
-            document.getElementById('f1-value').textContent = 
-                f1Percent + '%';
+                `2 × P × R / (P + R) × 100 = ${f1Percent}`;
+            document.getElementById('f1-input').value = f1Percent;
         }
 
-        let lastValues = { tp: 300, fn: 200, fp: 100 };
-        
+        function updateMatrixFromMetric(metricType) {
+            updatingFromMetric = true;
+            
+            let positiveCount = 0;
+            for (let i = 0; i < TOTAL_PIXELS; i++) {
+                if (groundTruthData[i] === 1) positiveCount++;
+            }
+            const negativeCount = TOTAL_PIXELS - positiveCount;
+            
+            const currentTP = parseInt(tpInput.value) || 0;
+            const currentFP = parseInt(fpInput.value) || 0;
+            let newTP = currentTP, newFN, newFP = currentFP;
+            
+            if (metricType === 'accuracy') {
+                const targetAccuracy = parseFloat(document.getElementById('accuracy-input').value) / 100;
+                const errorPixels = Math.round(TOTAL_PIXELS * (1 - targetAccuracy));
+                const fnRatio = positiveCount / TOTAL_PIXELS;
+                newFN = Math.round(errorPixels * fnRatio);
+                newFP = errorPixels - newFN;
+                newTP = positiveCount - newFN;
+            } else if (metricType === 'precision') {
+                const targetPrecision = parseFloat(document.getElementById('precision-input').value) / 100;
+                if (targetPrecision > 0 && targetPrecision < 1) {
+                    newFP = Math.round(currentTP / targetPrecision - currentTP);
+                    newFP = Math.max(0, Math.min(newFP, negativeCount));
+                } else if (targetPrecision === 1) {
+                    newFP = 0;
+                } else {
+                    newFP = negativeCount;
+                }
+                newFN = positiveCount - currentTP;
+            } else if (metricType === 'recall') {
+                const targetRecall = parseFloat(document.getElementById('recall-input').value) / 100;
+                newTP = Math.round(targetRecall * positiveCount);
+                newFN = positiveCount - newTP;
+                newFP = currentFP;
+            } else if (metricType === 'f1') {
+                const targetF1 = parseFloat(document.getElementById('f1-input').value) / 100;
+                newTP = Math.round(targetF1 * positiveCount);
+                newFN = positiveCount - newTP;
+                if (newTP > 0) {
+                    newFP = Math.round(newTP / targetF1 - newTP);
+                    newFP = Math.max(0, Math.min(newFP, negativeCount));
+                } else {
+                    newFP = 0;
+                }
+            }
+            
+            newTP = Math.max(0, Math.min(newTP, positiveCount));
+            newFN = Math.max(0, Math.min(newFN, positiveCount));
+            newFP = Math.max(0, Math.min(newFP, negativeCount));
+            
+            if (newTP + newFN !== positiveCount) {
+                newFN = positiveCount - newTP;
+            }
+            if (newTP + newFN + newFP > MAX_SUM) {
+                newFP = MAX_SUM - newTP - newFN;
+            }
+            
+            const newTN = negativeCount - newFP;
+            tpInput.value = newTP;
+            fnInput.value = newFN;
+            fpInput.value = newFP;
+            tnInput.value = newTN;
+            
+            updatingFromMetric = false;
+            updatePrediction();
+        }
+
         function handleMatrixChange(changedInput) {
             let tp = parseInt(tpInput.value) || 0;
             let fn = parseInt(fnInput.value) || 0;
             let fp = parseInt(fpInput.value) || 0;
             
-            // Ensure non-negative
             tp = Math.max(0, tp);
             fn = Math.max(0, fn);
             fp = Math.max(0, fp);
             
-            // Get the number of positive pixels in ground truth
             let positiveCount = 0;
             for (let i = 0; i < TOTAL_PIXELS; i++) {
                 if (groundTruthData[i] === 1) positiveCount++;
             }
-            
             const negativeCount = TOTAL_PIXELS - positiveCount;
             
-            // Anchor by rows: TP+FN must equal positive pixels, FP+TN must equal negative pixels
             if (changedInput === 'tp') {
-                // Adjust FN to maintain TP+FN = positiveCount
                 fn = Math.max(0, positiveCount - tp);
                 tp = Math.min(tp, positiveCount);
             } else if (changedInput === 'fn') {
-                // Adjust TP to maintain TP+FN = positiveCount
                 tp = Math.max(0, positiveCount - fn);
                 fn = Math.min(fn, positiveCount);
             } else if (changedInput === 'fp') {
-                // Adjust TN to maintain FP+TN = negativeCount
-                let tn = Math.max(0, negativeCount - fp);
                 fp = Math.min(fp, negativeCount);
             } else if (changedInput === 'tn') {
-                // Adjust FP to maintain FP+TN = negativeCount
                 let tnValue = parseInt(tnInput.value) || 0;
                 tnValue = Math.max(0, tnValue);
                 fp = Math.max(0, negativeCount - tnValue);
-                tnValue = Math.min(tnValue, negativeCount);
             }
             
-            // Limit total to prevent overflow
             if (tp + fn + fp > MAX_SUM) {
                 if (changedInput === 'tp' || changedInput === 'fn') {
                     const rowSum = tp + fn;
@@ -822,33 +1292,30 @@
                 }
             }
             
-            // Calculate TN based on the constraint
             const tn = negativeCount - fp;
-            
-            // Update inputs
             tpInput.value = tp;
             fnInput.value = fn;
             fpInput.value = fp;
             tnInput.value = tn;
             
-            // Store last values
-            lastValues = { tp, fn, fp };
-            
             updatePrediction();
         }
 
-        // Event listeners
         tpInput.addEventListener('input', () => handleMatrixChange('tp'));
         fnInput.addEventListener('input', () => handleMatrixChange('fn'));
         fpInput.addEventListener('input', () => handleMatrixChange('fp'));
         tnInput.addEventListener('input', () => handleMatrixChange('tn'));
+
+        document.getElementById('accuracy-input').addEventListener('change', () => updateMatrixFromMetric('accuracy'));
+        document.getElementById('precision-input').addEventListener('change', () => updateMatrixFromMetric('precision'));
+        document.getElementById('recall-input').addEventListener('change', () => updateMatrixFromMetric('recall'));
+        document.getElementById('f1-input').addEventListener('change', () => updateMatrixFromMetric('f1'));
 
         document.getElementById('generateBtn').addEventListener('click', () => {
             const targetPercentage = parseFloat(document.getElementById('targetPercentage').value) || 30;
             generateGroundTruthWithPercentage(targetPercentage);
         });
 
-        // Initialize
         const targetPercentage = parseFloat(document.getElementById('targetPercentage').value) || 30;
         generateGroundTruthWithPercentage(targetPercentage);
     </script>
