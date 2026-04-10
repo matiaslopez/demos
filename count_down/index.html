@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Timer</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: monospace;
+    }
+
+    .container {
+      width: 100vw;
+      height: 56.25vw; /* 16:9 ratio */
+      max-height: 100vh;
+      max-width: 177.78vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #timer {
+      font-size: 15vw;
+      color: white;
+      transition: color 0.3s;
+    }
+
+    .overtime {
+      color: red;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0.2; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="timer">01:00</div>
+  </div>
+
+  <script>
+    let countdown = 60; // segundos
+    let overtime = 0;
+    let isOvertime = false;
+
+    const timerEl = document.getElementById("timer");
+
+    function formatTime(seconds) {
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function update() {
+      if (!isOvertime) {
+        countdown--;
+        timerEl.textContent = formatTime(countdown);
+
+        if (countdown <= 0) {
+          isOvertime = true;
+          timerEl.classList.add("overtime");
+        }
+      } else {
+        overtime++;
+        timerEl.textContent = formatTime(overtime);
+      }
+    }
+
+    // primer render
+    timerEl.textContent = formatTime(countdown);
+
+    setInterval(update, 1000);
+  </script>
+</body>
+</html>
