@@ -3,31 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 Person Tracker - Detección en Navegador</title>
+    <title>Person-Box Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 Person Tracker</h1>
-            <p>Detección y anonimización de personas en tiempo real - 100% en tu navegador</p>
+            <h2>Person-Box Tracker</h2>
+            <small>Detección y anonimización de personas en tiempo real</small>
         </div>
 
         <div id="loading" class="loading">
-            <p>⏳ Cargando modelo YOLO... Por favor espera...</p>
+            <p>Cargando modelo YOLO... Por favor espera...</p>
         </div>
 
         <div id="app" class="hidden">
             <div class="main-content">
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Fondo</label>
+                        <select id="bgMode">
+                            <option value="dark">Oscuro</option>
+                            <option value="transparent">Original transparente</option>
+                            <option value="opaque">Original opaco</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group checkbox-group">
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" id="showTrajectories" checked>
+                            <span>Ver trayectorias</span>
+                        </label>
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" id="mirrorMode">
+                            <span>Espejar imagen</span>
+                        </label>
+                    </div>
+
+                    <div class="control-group">
+                        <button id="startBtn">Iniciar cámara</button>
+                    <!-- </div> -->
+                    <!-- <div class="control-group"> -->
+                        <button id="stopBtn" disabled>Detener</button>
+                        <button id="clearBtn" class="btn-secondary hidden">Limpiar trayectorias</button>
+                    </div>
+                </div>
+
                 <div class="video-container">
                     <video id="webcam" autoplay playsinline></video>
-                    <div class="video-label">📹 Webcam</div>
+                    <div class="video-label">Webcam</div>
                 </div>
 
                 <div class="video-container">
                     <canvas id="output"></canvas>
-                    <div class="video-label">🎨 Detección en Tiempo Real</div>
+                    <div class="video-label">Detección en Tiempo Real</div>
                 </div>
 
                 <div class="stats">
@@ -45,45 +75,8 @@
                     </div>
                 </div>
 
-                <div class="controls">
-                    <div class="control-group">
-                        <label>🎨 Modo de fondo</label>
-                        <select id="bgMode">
-                            <option value="dark">Oscuro</option>
-                            <option value="transparent">Original transparente</option>
-                            <option value="opaque">Original opaco</option>
-                        </select>
-                    </div>
-
-                    <div class="control-group">
-                        <label class="checkbox-wrapper">
-                            <input type="checkbox" id="showTrajectories" checked>
-                            <span>📍 Mostrar trayectorias</span>
-                        </label>
-                    </div>
-
-                    <div class="control-group">
-                        <label class="checkbox-wrapper">
-                            <input type="checkbox" id="mirrorMode">
-                            <span>🪞 Modo espejo</span>
-                        </label>
-                    </div>
-
-                    <div class="control-group">
-                        <button id="clearBtn" class="btn-secondary">🗑️ Limpiar trayectorias</button>
-                    </div>
-
-                    <div class="control-group">
-                        <button id="startBtn">▶️ Iniciar cámara</button>
-                    </div>
-
-                    <div class="control-group">
-                        <button id="stopBtn" disabled>⏸️ Detener</button>
-                    </div>
-                </div>
-
                 <div id="status" class="status">
-                    ℹ️ Listo para comenzar. Haz clic en "Iniciar cámara"
+                    Listo para comenzar. Haz clic en "Iniciar cámara"
                 </div>
             </div>
         </div>
