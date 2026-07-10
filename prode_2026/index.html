@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chichipios — Mundial 2026</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0f1117;
+  color: #e8e8e8;
+  min-height: 100vh;
+  padding: 24px 16px 60px;
+}
+
+.container { max-width: 960px; margin: 0 auto; }
+
+header { text-align: center; margin-bottom: 28px; }
+header h1 { font-size: 26px; font-weight: 700; color: #fff; }
+header h1 span { color: #4ade80; }
+header p { font-size: 13px; color: #555; margin-top: 5px; }
+
+/* ── RANKING CARDS ── */
+.ranking-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 28px;
+}
+.rank-card {
+  background: #1a1d27;
+  border: 1px solid #2a2d3a;
+  border-radius: 10px;
+  padding: 11px 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  position: relative;
+}
+.rank-card:hover, .rank-card.selected { border-color: var(--c); }
+.rank-card .pos  { font-size: 11px; color: #555; font-weight: 600; text-transform: uppercase; }
+.rank-card .name { font-size: 12px; font-weight: 600; color: #e8e8e8; margin: 3px 0 2px;
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-card .pts  { font-size: 20px; font-weight: 700; }
+.rank-card .sub  { font-size: 11px; color: #555; margin-top: 1px; }
+.rank-card .dot  { width: 7px; height: 7px; border-radius: 50%;
+                   position: absolute; top: 11px; right: 11px; background: var(--c); }
+
+/* ── TABS ── */
+.tabs {
+  display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.tab {
+  background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 7px;
+  color: #888; font-size: 13px; padding: 6px 14px; cursor: pointer;
+  transition: all 0.15s;
+}
+.tab.active { background: #22253a; border-color: #4ade80; color: #4ade80; font-weight: 600; }
+
+/* ── CHART PANEL ── */
+.panel {
+  background: #1a1d27; border: 1px solid #2a2d3a;
+  border-radius: 14px; padding: 22px 18px 16px;
+  margin-bottom: 24px;
+}
+.panel h2 { font-size: 13px; font-weight: 600; color: #555;
+            text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 16px; }
+.chart-box { position: relative; height: 360px; }
+
+/* ── LEYENDA ── */
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.leg-item {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; color: #aaa; cursor: pointer;
+  padding: 3px 7px; border-radius: 4px;
+  transition: background 0.12s;
+}
+.leg-item:hover { background: #22253a; }
+.leg-item.off { opacity: 0.3; }
+.leg-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── TABLA DE PRONÓSTICOS ── */
+.prono-controls {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
+}
+.prono-controls label { font-size: 13px; color: #666; }
+.prono-controls select {
+  background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 6px;
+  color: #e8e8e8; font-size: 13px; padding: 5px 9px;
+}
+
+.prono-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.prono-table th {
+  text-align: left; padding: 6px 8px; color: #555; font-weight: 600;
+  border-bottom: 1px solid #2a2d3a; font-size: 11px; text-transform: uppercase;
+}
+.prono-table td { padding: 6px 8px; border-bottom: 1px solid #1e2130; }
+.prono-table tr:last-child td { border-bottom: none; }
+.prono-table tr:hover td { background: #1e2130; }
+.badge {
+  display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 11px; font-weight: 600;
+}
+.badge.ok   { background: #14532d44; color: #4ade80; border: 1px solid #4ade8033; }
+.badge.fail { background: #7f1d1d44; color: #f87171; border: 1px solid #f8717133; }
+.badge.pend { background: #1e2130;   color: #555;    border: 1px solid #2a2d3a; }
+.score-cell { font-weight: 700; color: #f59e0b; text-align: center; }
+.team { display: flex; align-items: center; gap: 5px; }
+.team img { width: 18px; height: 18px; object-fit: contain; }
+
+/* ── EMPTY ── */
+.empty { text-align: center; padding: 60px 20px; color: #555; }
+.empty code {
+  display: inline-block; background: #1a1d27; border: 1px solid #2a2d3a;
+  border-radius: 6px; padding: 10px 18px; font-size: 13px; color: #4ade80;
+  font-family: monospace; margin-top: 14px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>⚽ <span>Chichipios</span> — Mundial 2026</h1>
+    <p id="subtitulo">Cargando...</p>
+  </header>
+  <div id="app"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// ── PALETA ────────────────────────────────────────────────────────────────────
+const PAL = [
+  "#4ade80","#60a5fa","#f59e0b","#f472b6","#a78bfa",
+  "#34d399","#fb923c","#e879f9","#38bdf8","#facc15",
+];
+
+const NOMBRE_FASE = {
+  A:"Grupo A",B:"Grupo B",C:"Grupo C",D:"Grupo D",
+  E:"Grupo E",F:"Grupo F",G:"Grupo G",H:"Grupo H",
+  I:"Grupo I",J:"Grupo J",K:"Grupo K",L:"Grupo L",
+  R32:"16avos",R16:"Octavos",QF:"Cuartos",SF:"Semifinal","3RD":"3°/4°",FI:"Final",
+};
+
+// ── ESTADO GLOBAL ─────────────────────────────────────────────────────────────
+let D = null;          // datos completos del JSON
+let chart = null;
+let hiddenUsers = new Set();
+let tabActiva = "jornadas"; // "jornadas" | "calendario" | "pronosticos"
+let faseProno = null;
+
+// ── CARGAR JSON ───────────────────────────────────────────────────────────────
+async function cargar() {
+  try {
+    const r = await fetch("scores.json?" + Date.now());
+    if (!r.ok) throw new Error();
+    return await r.json();
+  } catch { return null; }
+}
+
+// ── COLORES POR USUARIO ───────────────────────────────────────────────────────
+let colorMap = {};
+function color(usuario) { return colorMap[usuario] || "#888"; }
+
+// ── GRÁFICO POR JORNADAS ──────────────────────────────────────────────────────
+function datosJornadas() {
+  const ultimo = D.ultimo;
+  if (!ultimo) return null;
+  const pfecha = ultimo.puntos_por_fecha || {};
+
+  // Solo jornadas que ya tienen datos
+  const jornadas = Object.keys(pfecha).map(Number).sort((a,b)=>a-b);
+  if (jornadas.length === 0) return null;
+
+  const usuarios = ultimo.ranking.map(u => u.usuario);
+  const labels = jornadas.map(n => `Jornada ${n}`);
+
+  // Puntaje acumulado hasta cada jornada
+  const series = {};
+  usuarios.forEach(u => {
+    let acum = 0;
+    series[u] = jornadas.map(n => {
+      const pts = pfecha[String(n)]?.usuarios?.[u]?.puntos || 0;
+      acum += pts;
+      return acum;
+    });
+  });
+
+  return { labels, series };
+}
+
+// ── GRÁFICO POR DÍA CALENDARIO ───────────────────────────────────────────────
+function datosCalendario() {
+  const ultimo = D.ultimo;
+  if (!ultimo || !ultimo.pronosticos) return null;
+
+  const pronosticos = ultimo.pronosticos;
+  const usuarios = ultimo.ranking.map(u => u.usuario);
+
+  // Parsea "18/06 13:00" -> "2026-06-18"
+  function parseFecha(str) {
+    if (!str) return null;
+    const m = str.match(/^(\d{2})\/(\d{2})/);
+    if (!m) return null;
+    return `2026-${m[2]}-${m[1]}`;
+  }
+
+  // Acumular puntos por dia por usuario
+  const ptosPorDia = {};
+  usuarios.forEach(u => { ptosPorDia[u] = {}; });
+
+  usuarios.forEach(u => {
+    const vistos = new Set(); // deduplicar por partido
+    Object.values(pronosticos[u] || {}).forEach(partidos => {
+      (partidos || []).forEach(p => {
+        if (!p.jugado || p.puntos === null) return;
+        const key = `${p.fecha_partido}|${p.local}|${p.visitante}`;
+        if (vistos.has(key)) return;
+        vistos.add(key);
+        const fecha = parseFecha(p.fecha_partido);
+        if (!fecha) return;
+        ptosPorDia[u][fecha] = (ptosPorDia[u][fecha] || 0) + (p.puntos || 0);
+      });
+    });
+  });
+
+  // Todos los dias con partidos, ordenados
+  const diasSet = new Set();
+  usuarios.forEach(u => Object.keys(ptosPorDia[u]).forEach(d => diasSet.add(d)));
+  const dias = Array.from(diasSet).sort();
+  if (dias.length === 0) return null;
+
+  const labels = dias.map(d => {
+    const [, mes, dia] = d.match(/\d{4}-(\d{2})-(\d{2})/);
+    return `${dia}/${mes}`;
+  });
+
+  // Serie acumulada por usuario
+  const series = {};
+  usuarios.forEach(u => {
+    let acum = 0;
+    series[u] = dias.map(d => {
+      acum += (ptosPorDia[u][d] || 0);
+      return acum;
+    });
+  });
+
+  return { labels, series };
+}
+
+// ── RENDER CHART.JS ───────────────────────────────────────────────────────────
+function renderChart(datos, titulo) {
+  const wrap = document.getElementById("chartWrap");
+  if (!datos || datos.labels.length === 0) {
+    wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#555;font-size:14px;">Sin datos suficientes para este modo</div>`;
+    document.getElementById("legend").innerHTML = "";
+    return;
+  }
+  wrap.innerHTML = `<canvas id="mainChart" role="img" aria-label="${titulo}"></canvas>`;
+
+  const ctx = document.getElementById("mainChart").getContext("2d");
+  const usuarios = Object.keys(datos.series);
+
+  const datasets = usuarios.map(u => ({
+    label: u,
+    data: datos.series[u],
+    borderColor: color(u),
+    backgroundColor: color(u) + "18",
+    pointBackgroundColor: color(u),
+    borderWidth: 2.5,
+    pointRadius: 5,
+    pointHoverRadius: 8,
+    tension: 0.3,
+    fill: false,
+    hidden: hiddenUsers.has(u),
+    spanGaps: true,
+  }));
+
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "line",
+    data: { labels: datos.labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 500 },
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#1a1d27",
+          borderColor: "#2a2d3a", borderWidth: 1,
+          titleColor: "#888", bodyColor: "#e8e8e8", padding: 12,
+          callbacks: {
+            label: c => ` ${c.dataset.label}: ${c.parsed.y} pts`,
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color:"#666", font:{size:11}, maxRotation:30 }, grid: { color:"#1e2130" } },
+        y: { ticks: { color:"#666", font:{size:11} }, grid: { color:"#1e2130" },
+             title: { display:true, text:"Puntos", color:"#555", font:{size:12} } },
+      },
+    },
+  });
+
+  // Leyenda interactiva
+  const leg = document.getElementById("legend");
+  leg.innerHTML = "";
+  usuarios.forEach(u => {
+    const c = color(u);
+    const el = document.createElement("div");
+    el.className = "leg-item" + (hiddenUsers.has(u) ? " off" : "");
+    el.innerHTML = `<span class="leg-dot" style="background:${c}"></span>${u}`;
+    el.onclick = () => {
+      hiddenUsers.has(u) ? hiddenUsers.delete(u) : hiddenUsers.add(u);
+      el.classList.toggle("off");
+      const ds = chart.data.datasets.find(d => d.label === u);
+      if (ds) { ds.hidden = hiddenUsers.has(u); chart.update(); }
+    };
+    leg.appendChild(el);
+  });
+}
+
+// ── TABLA DE PRONÓSTICOS ──────────────────────────────────────────────────────
+function renderPronosticos() {
+  const panel = document.getElementById("pronoPanel");
+  const ultimo = D.ultimo;
+  if (!ultimo || !ultimo.pronosticos) {
+    panel.innerHTML = `<p style="color:#555;font-size:13px;">No hay datos de pronósticos. Volvé a correr el scraper.</p>`;
+    return;
+  }
+
+  const pronosticos = ultimo.pronosticos;
+  const usuarios = Object.keys(pronosticos);
+  const fasesDisponibles = Object.keys(NOMBRE_FASE).filter(f =>
+    usuarios.some(u => pronosticos[u]?.[f]?.length > 0)
+  );
+
+  if (fasesDisponibles.length === 0) {
+    panel.innerHTML = `<p style="color:#555;font-size:13px;">Sin datos de partidos aún.</p>`;
+    return;
+  }
+
+  if (!faseProno || !fasesDisponibles.includes(faseProno)) {
+    faseProno = fasesDisponibles[fasesDisponibles.length - 1]; // la más reciente
+  }
+
+  // Recopilar todos los partidos de esta fase (de cualquier usuario)
+  const partidosSet = {};
+  usuarios.forEach(u => {
+    (pronosticos[u]?.[faseProno] || []).forEach(p => {
+      const key = p.fecha_partido + "|" + p.local + "|" + p.visitante;
+      if (!partidosSet[key]) {
+        partidosSet[key] = {
+          fecha_partido: p.fecha_partido,
+          local: p.local, visitante: p.visitante,
+          local_corto: p.local_corto, visitante_corto: p.visitante_corto,
+          id_local: p.id_local, id_visitante: p.id_visitante,
+          goles_local: p.goles_local, goles_visitante: p.goles_visitante,
+          jugado: p.jugado,
+          pronosticos: {},
+        };
+      }
+      if (p.prode_local !== null && p.prode_local !== undefined) {
+        partidosSet[key].pronosticos[u] = {
+          local: p.prode_local,
+          visitante: p.prode_visitante,
+          puntos: p.puntos,
+        };
+      }
+    });
+  });
+
+  const partidos = Object.values(partidosSet).sort((a,b) =>
+    (a.fecha_partido || "").localeCompare(b.fecha_partido || "")
+  );
+
+  // Solo partidos jugados (con resultado real)
+  const jugados = partidos.filter(p => p.jugado);
+  const pendientes = partidos.filter(p => !p.jugado);
+
+  const rankingOrden = (ultimo.ranking || []).map(u => u.usuario);
+  const usuariosOrden = rankingOrden.filter(u => pronosticos[u]?.[faseProno]);
+
+  function signo(gl, gv) {
+    if (gl === null || gv === null) return "–";
+    if (gl > gv) return "L"; if (gl < gv) return "V"; return "E";
+  }
+  function badge(prono, real, pts) {
+    if (prono === null || prono === undefined) return `<span class="badge pend">–</span>`;
+    const acierto = signo(prono.local, prono.visitante) === signo(real.gl, real.gv);
+    const cls = real.gl === null ? "pend" : acierto ? "ok" : "fail";
+    const txt = `${prono.local}-${prono.visitante}`;
+    return `<span class="badge ${cls}">${txt}</span>` +
+      (real.gl !== null && pts !== null ? ` <small style="color:#f59e0b">${pts}p</small>` : "");
+  }
+
+  let html = `
+    <div class="prono-controls">
+      <label>Fase:</label>
+      <select onchange="faseProno=this.value; renderPronosticos()">
+        ${fasesDisponibles.map(f =>
+          `<option value="${f}" ${f===faseProno?"selected":""}>${NOMBRE_FASE[f]||f}</option>`
+        ).join("")}
+      </select>
+    </div>`;
+
+  if (jugados.length === 0) {
+    html += `<p style="color:#555;font-size:13px;">Sin partidos jugados en esta fase aún.</p>`;
+  } else {
+    html += `<div style="overflow-x:auto"><table class="prono-table">
+      <thead><tr>
+        <th>Partido</th><th style="text-align:center">Resultado</th>
+        ${usuariosOrden.map(u => `<th style="color:${color(u)}">${u}</th>`).join("")}
+      </tr></thead><tbody>`;
+
+    jugados.forEach(p => {
+      const res = p.goles_local !== null
+        ? `<strong>${p.goles_local}–${p.goles_visitante}</strong>`
+        : `<span style="color:#555">–</span>`;
+
+      html += `<tr>
+        <td>
+          <div class="team">
+            <img src="https://prodeenlinea.com/images/escudos/${p.id_local}.png" onerror="this.style.display='none'">
+            ${p.local_corto||p.local}
+            <span style="color:#555;margin:0 3px">vs</span>
+            ${p.visitante_corto||p.visitante}
+            <img src="https://prodeenlinea.com/images/escudos/${p.id_visitante}.png" onerror="this.style.display='none'">
+          </div>
+          <div style="font-size:10px;color:#555;margin-top:2px">${p.fecha_partido||""}</div>
+        </td>
+        <td style="text-align:center">${res}</td>
+        ${usuariosOrden.map(u => {
+          const pr = p.pronosticos[u];
+          return `<td>${badge(pr, {gl:p.goles_local,gv:p.goles_visitante}, pr?.puntos)}</td>`;
+        }).join("")}
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+
+    if (pendientes.length > 0) {
+      html += `<div style="margin-top:16px;font-size:12px;color:#555">
+        ${pendientes.length} partido${pendientes.length>1?"s":""} pendiente${pendientes.length>1?"s":""} en esta fase.
+      </div>`;
+    }
+  }
+
+  panel.innerHTML = html;
+}
+
+// ── RENDER TABS ───────────────────────────────────────────────────────────────
+function setTab(t) {
+  tabActiva = t;
+  document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
+
+  const chartPanel = document.getElementById("chartPanel");
+  const pronoSection = document.getElementById("pronoSection");
+
+  if (t === "pronosticos") {
+    chartPanel.style.display = "none";
+    pronoSection.style.display = "block";
+    renderPronosticos();
+  } else {
+    chartPanel.style.display = "block";
+    pronoSection.style.display = "none";
+    const datos = t === "jornadas" ? datosJornadas() : datosCalendario();
+    const titulo = t === "jornadas" ? "Puntaje acumulado por jornada" : "Evolución de puntajes por día";
+    document.getElementById("chartTitle").textContent = titulo;
+    renderChart(datos, titulo);
+  }
+}
+
+// ── RANKING CARDS ─────────────────────────────────────────────────────────────
+function renderRanking(ranking) {
+  const medal = ["gold","silver","bronze"];
+  const mcolor = ["#f59e0b","#94a3b8","#cd7c42"];
+  return ranking.map((u, i) => {
+    const c = color(u.usuario);
+    return `<div class="rank-card" style="--c:${c}" onclick="toggleUser('${u.usuario}', this)">
+      <span class="dot"></span>
+      <div class="pos" style="color:${mcolor[i]||'#555'}">#${u.pos}</div>
+      <div class="name">${u.usuario}</div>
+      <div class="pts" style="color:${c}">${u.puntos}</div>
+      <div class="sub">${u.plenos} plenos</div>
+    </div>`;
+  }).join("");
+}
+
+function toggleUser(usuario, card) {
+  hiddenUsers.has(usuario) ? hiddenUsers.delete(usuario) : hiddenUsers.add(usuario);
+  card.classList.toggle("selected", !hiddenUsers.has(usuario));
+  if (chart) {
+    const ds = chart.data.datasets?.find(d => d.label === usuario);
+    if (ds) { ds.hidden = hiddenUsers.has(usuario); chart.update(); }
+    document.querySelectorAll(".leg-item").forEach(el => {
+      if (el.textContent.trim() === usuario) el.classList.toggle("off", hiddenUsers.has(usuario));
+    });
+  }
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────────
+async function main() {
+  const app = document.getElementById("app");
+  D = await cargar();
+
+  if (!D || !D.ultimo) {
+    app.innerHTML = `<div class="empty">
+      <p style="font-size:16px;color:#e8e8e8">No se encontró <strong>scores.json</strong></p>
+      <p style="margin-top:8px">Corré el scraper primero:</p>
+      <code>python scraper.py</code>
+      <p style="margin-top:12px;font-size:12px;color:#444">Luego servilo con: <code style="font-size:11px">python -m http.server 8080</code></p>
+    </div>`;
+    return;
+  }
+
+  // Asignar colores por orden de ranking
+  D.ultimo.ranking.forEach((u, i) => { colorMap[u.usuario] = PAL[i % PAL.length]; });
+
+  const ts = D.ultimo.fecha_hora;
+  const nSnaps = D.snapshots.length;
+  document.getElementById("subtitulo").textContent =
+    `${D.ultimo.ranking.length} participantes · ${nSnaps} registro${nSnaps!==1?"s":""} · actualizado ${ts}`;
+
+  app.innerHTML = `
+    <div class="ranking-grid">${renderRanking(D.ultimo.ranking)}</div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="jornadas"  onclick="setTab('jornadas')">Por jornada</button>
+      <button class="tab"        data-tab="calendario" onclick="setTab('calendario')">Por día</button>
+      <button class="tab"        data-tab="pronosticos" onclick="setTab('pronosticos')">Pronósticos</button>
+    </div>
+
+    <div class="panel" id="chartPanel">
+      <h2 id="chartTitle">Puntaje acumulado por jornada</h2>
+      <div class="chart-box" id="chartWrap"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div id="pronoSection" style="display:none">
+      <div class="panel" id="pronoPanel"></div>
+    </div>
+
+    <div style="text-align:center;font-size:12px;color:#333;margin-top:12px">
+      Actualizá con <code style="color:#4ade80;font-family:monospace;font-size:11px">python scraper.py</code>
+      y recargá la página.
+    </div>
+  `;
+
+  setTab("jornadas");
+}
+
+main();
+</script>
+</body>
+</html>
