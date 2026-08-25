@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modelos locales vs. modelos en la nube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F3F5F7;
+    --paper-raised: #FFFFFF;
+    --ink: #1A2233;
+    --muted: #5B6472;
+    --line: #D8DCE1;
+    --local: #157A72;
+    --local-soft: #E4F2F0;
+    --cloud: #B4483A;
+    --cloud-soft: #F8E9E5;
+    --anon: #6B5FA8;
+    --anon-soft: #ECE9F5;
+    --focus: #2F6FED;
+    --shadow: 0 1px 2px rgba(26,34,51,0.06), 0 8px 24px rgba(26,34,51,0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #12161D;
+      --paper-raised: #191F29;
+      --ink: #E8ECF1;
+      --muted: #93A0B2;
+      --line: #2B3340;
+      --local: #37B2A6;
+      --local-soft: #17302C;
+      --cloud: #E08A6E;
+      --cloud-soft: #34201B;
+      --anon: #B3A6E8;
+      --anon-soft: #2A2440;
+      --focus: #7EA2FF;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 30px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #12161D;
+    --paper-raised: #191F29;
+    --ink: #E8ECF1;
+    --muted: #93A0B2;
+    --line: #2B3340;
+    --local: #37B2A6;
+    --local-soft: #17302C;
+    --cloud: #E08A6E;
+    --cloud-soft: #34201B;
+    --anon: #B3A6E8;
+    --anon-soft: #2A2440;
+    --focus: #7EA2FF;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 30px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--muted);
+    margin: 0 0 0.9rem 0;
+  }
+
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+
+  .progress-rail { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--line); z-index: 40; }
+  .progress-fill {
+    height: 100%;
+    width: 10%;
+    background: linear-gradient(90deg, var(--local), var(--cloud));
+    transition: width 0.45s ease;
+  }
+
+  /* ================= Non-linear canvas engine ================= */
+  .canvas-viewport {
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+    background: var(--paper);
+  }
+
+  .canvas {
+    position: relative;
+    width: calc(var(--numcols, 1) * 100vw);
+    height: calc(var(--numrows, 1) * 100dvh);
+    transform: translate(calc(var(--col, 0) * -100vw), calc(var(--row, 0) * -100dvh));
+    transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .canvas { transition: none; }
+  }
+
+  .frame {
+    position: absolute;
+    top: calc(var(--frow, 0) * 100dvh);
+    left: calc(var(--fcol, 0) * 100vw);
+    width: 100vw;
+    height: 100dvh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: clamp(1.75rem, 5vw, 4.5rem) clamp(1.5rem, 8vw, 7rem) 7rem;
+  }
+  .frame.center { justify-content: center; }
+  .frame.top { justify-content: flex-start; padding-top: clamp(3rem, 9vh, 5.5rem); }
+
+  .frame-inner { max-width: 62rem; width: 100%; margin: 0 auto; }
+
+  /* Overview / map mode: fixed legible thumbnail scale, pan by scrolling */
+  .canvas-viewport.is-overview { overflow: auto; }
+  .canvas { transform-origin: top left; }
+  .is-overview .frame {
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    pointer-events: auto;
+  }
+  .is-overview .frame:hover,
+  .is-overview .frame:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+  .is-overview .frame.is-current { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+  /* Vertical "dive" zoom pulse — animates the outer wrapper, never the
+     positioned canvas, so it can't clobber the translate that holds --col/--row */
+  @keyframes divePulse {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.018); }
+    100% { transform: scale(1); }
+  }
+  .canvas-viewport.is-diving { animation: divePulse 0.55s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    .canvas-viewport.is-diving { animation: none; }
+  }
+
+  /* Branch hint chevron on frames with a child row */
+  .branch-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 5.4rem;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    color: var(--muted);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    pointer-events: none;
+    animation: hintBob 2.2s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .branch-hint { animation: none; } }
+  @keyframes hintBob { 0%,100% { opacity: .55; transform: translate(-50%,0); } 50% { opacity: 1; transform: translate(-50%,4px); } }
+  .branch-hint svg { width: 1rem; height: 1rem; }
+
+  /* ---------- Portada ---------- */
+  .cover-title {
+    font-size: clamp(2.2rem, 6.4vw, 4.3rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.06;
+  }
+  .cover-title .accent-local { color: var(--local); }
+  .cover-title .accent-cloud { color: var(--cloud); }
+  .cover-sub { margin-top: 1.4rem; font-size: clamp(1.05rem, 2vw, 1.3rem); color: var(--muted); max-width: 44ch; line-height: 1.55; }
+  .cover-meta { margin-top: 3rem; display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; }
+  .cover-swatch { display: inline-flex; align-items: center; gap: 0.5rem; font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; color: var(--muted); }
+  .swatch-dot { width: 0.6rem; height: 0.6rem; display: inline-block; }
+  .cover-foot { margin-top: auto; padding-top: 3rem; font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--muted); }
+
+  /* ---------- Titles ---------- */
+  .frame-title { font-size: clamp(1.7rem, 3.6vw, 2.55rem); font-weight: 700; letter-spacing: -0.01em; margin-bottom: 1.6rem; }
+  .frame-lede { font-size: 1.05rem; color: var(--muted); max-width: 58ch; line-height: 1.6; margin-bottom: 2rem; }
+
+  /* ---------- Definition cards ---------- */
+  .def-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; margin-bottom: 1.75rem; }
+  .def-card {
+    background: var(--paper-raised); border: 1px solid var(--line); border-left: 3px solid var(--card-accent);
+    border-radius: 4px; padding: 1.3rem 1.4rem; box-shadow: var(--shadow);
+  }
+  .def-card.is-local { --card-accent: var(--local); }
+  .def-card.is-cloud { --card-accent: var(--cloud); }
+  .def-card.is-anon { --card-accent: var(--anon); }
+  .def-label {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--card-accent); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.7rem;
+  }
+  .def-label::before { content: ""; width: 0.55rem; height: 0.55rem; background: var(--card-accent); display: inline-block; flex: 0 0 auto; }
+  .def-card p.def-body { margin: 0; line-height: 1.5; font-size: 0.92rem; }
+  .framing-line { font-size: 1.05rem; font-weight: 500; border-top: 1px solid var(--line); padding-top: 1.5rem; max-width: 56ch; }
+
+  /* ---------- Diagram figures ---------- */
+  .diagram-scroll {
+    overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--paper-raised);
+    box-shadow: var(--shadow); padding: 1.1rem 1.2rem 0.9rem;
+  }
+  .diagram-scroll svg { display: block; width: 820px; max-width: none; height: auto; color: var(--ink); }
+  figure.diagram-figure { margin: 0 0 1.5rem 0; }
+  figcaption.diagram-caption { margin-top: 0.85rem; font-size: 0.88rem; color: var(--muted); line-height: 1.55; max-width: 62ch; }
+
+  .note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+  .note-list li { font-size: 0.95rem; line-height: 1.55; padding-left: 1.1rem; position: relative; }
+  .note-list li::before { content: "—"; position: absolute; left: 0; color: var(--muted); }
+
+  /* ---------- Acronym gloss ---------- */
+  .gloss { margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 0.35rem 2rem; }
+  .gloss div { font-size: 0.8rem; line-height: 1.5; max-width: 34ch; }
+  .gloss dt { display: inline; font-family: "IBM Plex Mono", monospace; font-weight: 600; color: var(--ink); }
+  .gloss dd { display: inline; margin: 0; color: var(--muted); }
+
+  /* ---------- Tables ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--paper-raised); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; min-width: 46rem; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 0.8rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.4; }
+  thead th { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--paper); }
+  thead th.col-local { color: var(--local); }
+  thead th.col-cloud { color: var(--cloud); }
+  thead th.col-anon { color: var(--anon); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.dim { font-weight: 600; color: var(--ink); }
+  td.col-local { border-left: 2px solid var(--local-soft); }
+  td.col-cloud { border-left: 2px solid var(--cloud-soft); }
+  td.col-anon { border-left: 2px solid var(--anon-soft); }
+
+  /* ---------- Benefit / risk lists ---------- */
+  .mode-banner {
+    display: inline-flex; align-items: center; gap: 0.55rem; font-family: "IBM Plex Mono", monospace; font-size: 0.78rem;
+    font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.3rem 0.7rem; border-radius: 3px; margin-bottom: 1.2rem;
+  }
+  .mode-banner.local { background: var(--local-soft); color: var(--local); }
+  .mode-banner.cloud { background: var(--cloud-soft); color: var(--cloud); }
+  .mode-banner.anon { background: var(--anon-soft); color: var(--anon); }
+
+  .item-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
+  .item-list li { display: flex; gap: 0.9rem; align-items: flex-start; font-size: 1rem; line-height: 1.55; }
+  .item-list li::before { content: ""; flex: 0 0 auto; width: 0.5rem; height: 0.5rem; margin-top: 0.55rem; background: var(--muted); }
+  .item-list.local li::before { background: var(--local); }
+  .item-list.cloud li::before { background: var(--cloud); }
+  .item-list.anon li::before { background: var(--anon); }
+  .item-list b { font-weight: 600; }
+
+  .subhead {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin: 1.6rem 0 0.9rem;
+  }
+  .subhead:first-of-type { margin-top: 0; }
+
+  /* ---------- Ops cost columns ---------- */
+  .ops-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
+  .ops-col { background: var(--paper-raised); border: 1px solid var(--line); border-top: 3px solid var(--col-accent); border-radius: 4px; padding: 1.2rem 1.3rem; box-shadow: var(--shadow); }
+  .ops-col.local { --col-accent: var(--local); }
+  .ops-col.cloud { --col-accent: var(--cloud); }
+  .ops-col.anon { --col-accent: var(--anon); }
+  .ops-head { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--col-accent); margin-bottom: 0.85rem; }
+  .ops-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+  .ops-col li { font-size: 0.87rem; line-height: 1.48; padding-left: 1rem; position: relative; }
+  .ops-col li::before { content: "▸"; position: absolute; left: 0; color: var(--col-accent); font-size: 0.72rem; }
+
+  /* ---------- Closing checklist ---------- */
+  .checklist { list-style: none; margin: 0 0 2rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.9rem; }
+  .checklist li { font-size: 1.05rem; line-height: 1.55; padding-left: 1.6rem; position: relative; }
+  .checklist li::before { content: ""; position: absolute; left: 0; top: 0.4rem; width: 0.7rem; height: 0.7rem; border: 2px solid var(--muted); transform: rotate(45deg); }
+  .pull-line { font-size: 1.2rem; font-weight: 500; border-left: 3px solid var(--ink); padding-left: 1.2rem; max-width: 52ch; line-height: 1.5; }
+  .hybrid-note { margin-top: 1.5rem; font-size: 0.95rem; color: var(--muted); line-height: 1.6; max-width: 58ch; }
+
+  /* ---------- Bottom nav ---------- */
+  .deck-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--paper-raised); border-top: 1px solid var(--line);
+    padding: 0.65rem clamp(1rem, 4vw, 2.5rem); display: flex; align-items: center; justify-content: space-between; gap: 1rem; z-index: 40;
+  }
+  .nav-counter { font-size: 0.76rem; color: var(--muted); flex: 0 0 auto; min-width: 6.5rem; font-variant-numeric: tabular-nums; }
+  .nav-dots { display: flex; gap: 0.42rem; flex: 1 1 auto; justify-content: center; flex-wrap: wrap; }
+  .nav-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--line); border: none; padding: 0; cursor: pointer; position: relative; }
+  .nav-dot.is-active { background: var(--ink); }
+  .nav-dot.has-branch::after { content: ""; position: absolute; left: 50%; top: -0.55rem; transform: translateX(-50%); width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+  .nav-buttons { display: flex; gap: 0.55rem; flex: 0 0 auto; }
+  .nav-btn {
+    font-family: "IBM Plex Sans", sans-serif; font-size: 0.83rem; font-weight: 500; background: var(--paper); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 3px; padding: 0.42rem 0.85rem; cursor: pointer;
+  }
+  .nav-btn:hover:not(:disabled) { border-color: var(--ink); }
+  .nav-btn:disabled { opacity: 0.35; cursor: default; }
+  .nav-btn.is-map { color: var(--muted); }
+  .nav-btn.is-map.is-active { color: var(--ink); border-color: var(--ink); }
+  .nav-btn:focus-visible, .nav-dot:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* Contextual up/down pill */
+  .depth-pill {
+    position: fixed; left: 50%; bottom: 4.3rem; transform: translateX(-50%);
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 999px;
+    padding: 0.5rem 1rem; box-shadow: var(--shadow); cursor: pointer;
+    font-size: 0.82rem; font-weight: 500; color: var(--ink); z-index: 35;
+  }
+  .depth-pill svg { width: 0.9rem; height: 0.9rem; flex: 0 0 auto; }
+  .depth-pill:hover { border-color: var(--ink); }
+  .depth-pill[hidden] { display: none; }
+
+  @media (max-width: 720px) {
+    .def-grid, .ops-grid { grid-template-columns: 1fr; }
+    .nav-dots { display: none; }
+    .nav-counter { min-width: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-rail"><div class="progress-fill js-progress"></div></div>
+
+<div class="canvas-viewport js-viewport">
+  <div class="canvas js-canvas">
+
+    <!-- COL 0 — Portada -->
+    <section class="frame center" data-col="0" data-row="0">
+      <div class="frame-inner">
+        <p class="eyebrow">Privacidad y gobernanza de datos</p>
+        <h1 class="cover-title">Modelos <span class="accent-local">locales</span> vs. modelos en la <span class="accent-cloud">nube</span></h1>
+        <p class="cover-sub">Qué cambia cuando los datos no salen de tu infraestructura, cuando sí salen, y cuando salen disfrazados.</p>
+        <div class="cover-meta">
+          <span class="cover-swatch"><span class="swatch-dot" style="background:var(--local)"></span>LOCAL</span>
+          <span class="cover-swatch"><span class="swatch-dot" style="background:var(--cloud)"></span>NUBE</span>
+          <span class="cover-swatch"><span class="swatch-dot" style="background:var(--anon)"></span>NUBE + ANONIMIZACIÓN</span>
+        </div>
+      </div>
+      <div class="cover-foot mono">Material de apoyo — autocontenido · usá ← → ↑ ↓ o el botón "Mapa"</div>
+    </section>
+
+    <!-- COL 1 — Qué comparamos -->
+    <section class="frame top" data-col="1" data-row="0">
+      <div class="frame-inner">
+        <p class="eyebrow">Marco</p>
+        <h2 class="frame-title">Tres formas de correr un modelo</h2>
+        <div class="def-grid">
+          <div class="def-card is-local">
+            <p class="def-label">Local</p>
+            <p class="def-body">El modelo corre en infraestructura que vos controlás: tu servidor, tu notebook, tu nube privada. Los datos nunca cruzan un perímetro que no administrás.</p>
+          </div>
+          <div class="def-card is-cloud">
+            <p class="def-label">Nube</p>
+            <p class="def-body">El modelo corre en la infraestructura de un proveedor externo y se accede por API. Cada consulta viaja fuera de tu organización, tal cual como la escribiste.</p>
+          </div>
+          <div class="def-card is-anon">
+            <p class="def-label">Nube + anonimización</p>
+            <p class="def-body">Antes de salir, una capa propia detecta y enmascara lo sensible. El proveedor externo recibe el pedido, pero no la versión identificable.</p>
+          </div>
+        </div>
+        <p class="framing-line">La pregunta no es "qué modelo es mejor", sino "quién ve el dato, en qué forma, y en qué paso".</p>
+      </div>
+    </section>
+
+    <!-- COL 2 — Esquemas (row0: funcionamiento, row1: riesgo) -->
+    <section class="frame top" data-col="2" data-row="0" data-down-label="Ver dónde está el riesgo">
+      <div class="frame-inner">
+        <p class="eyebrow">Esquema 1 — Funcionamiento</p>
+        <h2 class="frame-title">Cómo se arma cada camino</h2>
+        <figure class="diagram-figure">
+          <div class="diagram-scroll">
+            <svg viewBox="0 0 820 320" role="img" aria-label="Diagrama de tres pipelines: local, donde todo queda dentro de un perímetro punteado; nube, donde el pedido cruza a una API externa y a un modelo externo; y nube con anonimización, donde el pedido pasa por un anonimizador antes de cruzar hacia la API externa.">
+              <defs>
+                <marker id="ar-local" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--local)"/></marker>
+                <marker id="ar-cloud" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--cloud)"/></marker>
+                <marker id="ar-anon" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--anon)"/></marker>
+              </defs>
+
+              <!-- Row 1: LOCAL — contained -->
+              <rect x="20" y="16" width="480" height="86" rx="8" fill="none" stroke="var(--local)" stroke-width="1.5" stroke-dasharray="5 4"/>
+              <text x="36" y="36" font-family="IBM Plex Mono" font-size="11" font-weight="600" letter-spacing="0.06em" fill="var(--local)">LOCAL — nunca cruza el perímetro</text>
+              <rect x="40" y="50" width="90" height="34" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.3"/>
+              <text x="85" y="71" text-anchor="middle" font-size="11" fill="var(--ink)">Usuario</text>
+              <line x1="132" y1="67" x2="158" y2="67" stroke="var(--local)" stroke-width="1.6" marker-end="url(#ar-local)"/>
+              <rect x="160" y="50" width="170" height="34" rx="4" fill="var(--local-soft)" stroke="var(--local)" stroke-width="1.5"/>
+              <text x="245" y="71" text-anchor="middle" font-size="11" fill="var(--local)">Modelo (tu red)</text>
+              <line x1="332" y1="67" x2="358" y2="67" stroke="var(--local)" stroke-width="1.6" marker-end="url(#ar-local)"/>
+              <rect x="360" y="50" width="110" height="34" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.3"/>
+              <text x="415" y="71" text-anchor="middle" font-size="11" fill="var(--ink)">Respuesta</text>
+
+              <!-- Row 2: NUBE — crosses -->
+              <text x="20" y="140" font-family="IBM Plex Mono" font-size="11" font-weight="600" letter-spacing="0.06em" fill="var(--cloud)">NUBE — cruza el perímetro tal cual</text>
+              <line x1="300" y1="150" x2="300" y2="200" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="4 3"/>
+              <text x="304" y="147" font-size="9" fill="var(--muted)">límite</text>
+              <rect x="40" y="163" width="90" height="34" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.3"/>
+              <text x="85" y="184" text-anchor="middle" font-size="11" fill="var(--ink)">Usuario</text>
+              <line x1="132" y1="180" x2="326" y2="180" stroke="var(--cloud)" stroke-width="1.6" marker-end="url(#ar-cloud)"/>
+              <rect x="330" y="163" width="150" height="34" rx="4" fill="var(--cloud-soft)" stroke="var(--cloud)" stroke-width="1.5"/>
+              <text x="405" y="184" text-anchor="middle" font-size="11" fill="var(--cloud)">API del proveedor</text>
+              <line x1="482" y1="180" x2="508" y2="180" stroke="var(--cloud)" stroke-width="1.6" marker-end="url(#ar-cloud)"/>
+              <rect x="510" y="163" width="120" height="34" rx="4" fill="var(--cloud-soft)" stroke="var(--cloud)" stroke-width="1.5"/>
+              <text x="570" y="184" text-anchor="middle" font-size="11" fill="var(--cloud)">Modelo</text>
+              <line x1="632" y1="180" x2="658" y2="180" stroke="var(--cloud)" stroke-width="1.6" marker-end="url(#ar-cloud)"/>
+              <rect x="660" y="163" width="110" height="34" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.3"/>
+              <text x="715" y="184" text-anchor="middle" font-size="11" fill="var(--ink)">Respuesta</text>
+
+              <!-- Row 3: NUBE + ANONIMIZACIÓN — transforms, then crosses -->
+              <text x="20" y="245" font-family="IBM Plex Mono" font-size="11" font-weight="600" letter-spacing="0.06em" fill="var(--anon)">NUBE + ANONIMIZACIÓN — cruza ya enmascarado</text>
+              <line x1="300" y1="255" x2="300" y2="305" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="4 3"/>
+              <rect x="40" y="268" width="90" height="34" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.3"/>
+              <text x="85" y="289" text-anchor="middle" font-size="11" fill="var(--ink)">Usuario</text>
+              <line x1="132" y1="285" x2="158" y2="285" stroke="var(--anon)" stroke-width="1.6" marker-end="url(#ar-anon)"/>
+              <rect x="160" y="268" width="120" height="34" rx="4" fill="var(--anon-soft)" stroke="var(--anon)" stroke-width="1.5"/>
+              <text x="220" y="289" text-anchor="middle" font-size="10.5" fill="var(--anon)">Anonimizador</text>
+              <line x1="282" y1="285" x2="326" y2="285" stroke="var(--anon)" stroke-width="1.6" marker-end="url(#ar-anon)"/>
+              <rect x="330" y="268" width="150" height="34" rx="4" fill="var(--cloud-soft)" stroke="var(--cloud)" stroke-width="1.5"/>
+              <text x="405" y="289" text-anchor="middle" font-size="11" fill="var(--cloud)">API del proveedor</text>
+              <line x1="482" y1="285" x2="508" y2="285" stroke="var(--cloud)" stroke-width="1.6" marker-end="url(#ar-cloud)"/>
+              <rect x="510" y="268" width="120" height="34" rx="4" fill="var(--cloud-soft)" stroke="var(--cloud)" stroke-width="1.5"/>
+              <text x="570" y="289" text-anchor="middle" font-size="11" fill="var(--cloud)">Modelo</text>
+              <line x1="632" y1="285" x2="658" y2="285" stroke="var(--cloud)" stroke-width="1.6" marker-end="url(#ar-cloud)"/>
+              <rect x="660" y="268" width="110" height="34" rx="4" fill="var(--paper)" stroke="var(--line)" stroke-width="1.3"/>
+              <text x="715" y="289" text-anchor="middle" font-size="11" fill="var(--ink)">Respuesta</text>
+            </svg>
+          </div>
+          <figcaption class="diagram-caption">La caja punteada de "local" nunca se abre. En "nube" y "nube + anonimización" el pedido cruza la línea de límite — la diferencia es qué versión del dato la cruza.</figcaption>
+        </figure>
+      </div>
+      <div class="branch-hint">
+        <span>Esquema de riesgo</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </section>
+
+    <section class="frame top" data-col="2" data-row="1" data-up-label="Volver al funcionamiento">
+      <div class="frame-inner">
+        <p class="eyebrow">Esquema 2 — Riesgo</p>
+        <h2 class="frame-title">El caso de Rubén Paz</h2>
+        <figure class="diagram-figure">
+          <div class="diagram-scroll">
+            <svg viewBox="0 0 820 345" role="img" aria-label="Diagrama de riesgo: un parte de accidente con el nombre Rubén Paz y el lugar Neuquén. En el modo local se queda adentro del perímetro y nunca cruza. En el modo nube cruza el límite tal cual, con nombre y lugar reales. En el modo nube con anonimización pasa por un anonimizador y cruza con el nombre y el lugar reemplazados.">
+              <defs>
+                <marker id="ar2-cloud" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--cloud)"/></marker>
+                <marker id="ar2-anon" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><polygon points="0,0 10,5 0,10" fill="var(--anon)"/></marker>
+              </defs>
+
+              <rect x="10" y="15" width="380" height="315" rx="10" fill="var(--local-soft)" opacity="0.55"/>
+              <rect x="430" y="15" width="380" height="315" rx="10" fill="var(--cloud-soft)" opacity="0.5"/>
+              <text x="200" y="36" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" letter-spacing="0.08em" fill="var(--muted)">DENTRO DE TU PERÍMETRO</text>
+              <text x="620" y="36" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" letter-spacing="0.08em" fill="var(--muted)">AFUERA DE TU CONTROL</text>
+              <line x1="410" y1="20" x2="410" y2="325" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="4 3"/>
+
+              <!-- Row LOCAL: contained, no crossing -->
+              <text x="40" y="66" font-family="IBM Plex Mono" font-size="10" font-weight="600" letter-spacing="0.06em" fill="var(--local)">LOCAL</text>
+              <rect x="40" y="74" width="180" height="36" rx="18" fill="var(--paper-raised)" stroke="var(--line)" stroke-width="1.4"/>
+              <text x="130" y="97" text-anchor="middle" font-size="10.5" fill="var(--ink)">Rubén Paz · Neuquén</text>
+              <g transform="translate(232,82)">
+                <rect x="0" y="10" width="16" height="12" rx="2" fill="var(--local)"/>
+                <path d="M3,10 a5,5 0 0 1 10,0" fill="none" stroke="var(--local)" stroke-width="2"/>
+              </g>
+              <text x="262" y="94" font-size="12" font-weight="600" fill="var(--local)">Nunca cruza el límite</text>
+              <text x="262" y="110" font-size="10" fill="var(--muted)">Todo el procesamiento ocurre adentro</text>
+
+              <!-- Row NUBE: crosses unchanged -->
+              <text x="40" y="176" font-family="IBM Plex Mono" font-size="10" font-weight="600" letter-spacing="0.06em" fill="var(--cloud)">NUBE</text>
+              <rect x="40" y="184" width="180" height="36" rx="18" fill="var(--paper-raised)" stroke="var(--line)" stroke-width="1.4"/>
+              <text x="130" y="207" text-anchor="middle" font-size="10.5" fill="var(--ink)">Rubén Paz · Neuquén</text>
+              <line x1="222" y1="202" x2="456" y2="202" stroke="var(--cloud)" stroke-width="1.8" marker-end="url(#ar2-cloud)"/>
+              <rect x="460" y="184" width="180" height="36" rx="18" fill="var(--cloud-soft)" stroke="var(--cloud)" stroke-width="1.5"/>
+              <text x="550" y="207" text-anchor="middle" font-size="10.5" fill="var(--cloud)">Rubén Paz · Neuquén</text>
+              <text x="460" y="238" font-size="11" font-weight="600" fill="var(--cloud)">Sale con nombre y lugar reales</text>
+
+              <!-- Row NUBE + ANON: transforms then crosses -->
+              <text x="40" y="268" font-family="IBM Plex Mono" font-size="10" font-weight="600" letter-spacing="0.06em" fill="var(--anon)">NUBE + ANONIMIZACIÓN</text>
+              <rect x="40" y="276" width="180" height="36" rx="18" fill="var(--paper-raised)" stroke="var(--line)" stroke-width="1.4"/>
+              <text x="130" y="299" text-anchor="middle" font-size="10.5" fill="var(--ink)">Rubén Paz · Neuquén</text>
+              <line x1="222" y1="294" x2="316" y2="294" stroke="var(--anon)" stroke-width="1.8" marker-end="url(#ar2-anon)"/>
+              <polygon points="320,278 362,278 350,300 332,300" fill="var(--anon-soft)" stroke="var(--anon)" stroke-width="1.4"/>
+              <line x1="366" y1="294" x2="456" y2="294" stroke="var(--anon)" stroke-width="1.8" marker-end="url(#ar2-anon)"/>
+              <rect x="460" y="276" width="230" height="36" rx="18" fill="var(--anon-soft)" stroke="var(--anon)" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <text x="575" y="299" text-anchor="middle" font-size="10.5" fill="var(--anon)">Roberto Quenedi · Lilliput</text>
+            </svg>
+          </div>
+          <figcaption class="diagram-caption">El parte original dice "El operario Rubén Paz se fracturó el tobillo en Neuquén". Por nube directa llega tal cual; por nube con anonimización, el nombre y el lugar se reemplazan antes de salir: "El operario Roberto Quenedi se fracturó el tobillo en Lilliput" — el motivo de la consulta se conserva, la identidad no.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- COL 3 — Gobernanza -->
+    <section class="frame top" data-col="3" data-row="0">
+      <div class="frame-inner">
+        <p class="eyebrow">Eje 2 — Gobernanza</p>
+        <h2 class="frame-title">Quién decide, quién responde</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Dimensión</th><th class="col-local">Local</th><th class="col-cloud">Nube</th><th class="col-anon">Nube + anonimización</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="dim">Residencia de los datos</td><td class="col-local">La definís vos</td><td class="col-cloud">La define el proveedor</td><td class="col-anon">La define el proveedor, pero recibe una versión enmascarada</td></tr>
+              <tr><td class="dim">Auditoría</td><td class="col-local">Acceso directo a logs e infraestructura</td><td class="col-cloud">Depende de lo que el proveedor exponga</td><td class="col-anon">Además hay que auditar tu propia capa de anonimización</td></tr>
+              <tr><td class="dim">Marco contractual</td><td class="col-local">No aplica (uso interno)</td><td class="col-cloud">DPA, términos de servicio, SLA del proveedor</td><td class="col-anon">Mismo DPA, pero con menos dato identificable en juego</td></tr>
+              <tr><td class="dim">Subprocesadores</td><td class="col-local">Ninguno</td><td class="col-cloud">El proveedor puede tercerizar partes del pipeline</td><td class="col-anon">Los mismos, pero exponés menos por request</td></tr>
+              <tr><td class="dim">Cambios de política</td><td class="col-local">Los controlás vos</td><td class="col-cloud">Pueden cambiar unilateralmente (ToS)</td><td class="col-anon">Mismo riesgo, mitigado por lo que nunca llega a enviarse</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <dl class="gloss">
+          <div><dt>DPA</dt> <dd>— Data Processing Agreement: contrato que regula cómo el proveedor trata tus datos personales.</dd></div>
+          <div><dt>SLA</dt> <dd>— Service Level Agreement: compromiso contractual de disponibilidad y soporte del proveedor.</dd></div>
+          <div><dt>ToS</dt> <dd>— Terms of Service: términos y condiciones de uso que el proveedor puede modificar unilateralmente.</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- COL 4 — Local (row0: beneficios, row1: riesgos) -->
+    <section class="frame top" data-col="4" data-row="0" data-down-label="Ver riesgos de local">
+      <div class="frame-inner">
+        <span class="mode-banner local">Local</span>
+        <h2 class="frame-title">Beneficios</h2>
+        <ul class="item-list local">
+          <li><span><b>Control total del dato:</b> nada sale de tu red.</span></li>
+          <li><span><b>Cumplimiento simplificado:</b> menos terceros en el análisis de riesgo (GDPR, HIPAA, normativa local).</span></li>
+          <li><span><b>Sin dependencia de conectividad</b> ni de la disponibilidad de un proveedor externo.</span></li>
+          <li><span><b>Costo marginal por consulta ≈ 0</b> una vez amortizada la infraestructura.</span></li>
+          <li><span><b>Podés auditar, versionar y congelar</b> el modelo exacto que usás.</span></li>
+        </ul>
+        <dl class="gloss">
+          <div><dt>GDPR</dt> <dd>— General Data Protection Regulation: reglamento europeo de protección de datos personales.</dd></div>
+          <div><dt>HIPAA</dt> <dd>— ley estadounidense (Health Insurance Portability and Accountability Act) que regula la privacidad de datos de salud.</dd></div>
+        </dl>
+      </div>
+      <div class="branch-hint">
+        <span>Riesgos de local</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </section>
+
+    <section class="frame top" data-col="4" data-row="1" data-up-label="Volver a beneficios de local">
+      <div class="frame-inner">
+        <span class="mode-banner local">Local</span>
+        <h2 class="frame-title">Riesgos</h2>
+        <ul class="item-list local">
+          <li><span><b>La seguridad del perímetro es 100% tu responsabilidad</b> — si falla, no hay proveedor que absorba el incidente.</span></li>
+          <li><span><b>Los modelos de mayor capacidad</b> suelen no ser viables en hardware propio (memoria, GPU, costo de entrenamiento).</span></li>
+          <li><span><b>Quedás atrás de las mejoras de frontera</b> si no actualizás activamente.</span></li>
+          <li><span><b>Las vulnerabilidades del stack</b> (drivers, runtime de inferencia, dependencias) las parcheás vos.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- COL 5 — Nube (row0: beneficios, row1: riesgos) -->
+    <section class="frame top" data-col="5" data-row="0" data-down-label="Ver riesgos de nube">
+      <div class="frame-inner">
+        <span class="mode-banner cloud">Nube</span>
+        <h2 class="frame-title">Beneficios</h2>
+        <ul class="item-list cloud">
+          <li><span><b>Acceso a los modelos más capaces</b> sin invertir en infraestructura propia.</span></li>
+          <li><span><b>Escalado automático:</b> de un prototipo a producción sin re-arquitecturar.</span></li>
+          <li><span><b>Mejoras continuas:</b> el proveedor actualiza el modelo sin trabajo de tu parte.</span></li>
+          <li><span><b>Menor superficie propia</b> de infraestructura que mantener y parchear.</span></li>
+        </ul>
+      </div>
+      <div class="branch-hint">
+        <span>Riesgos de nube</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </section>
+
+    <section class="frame top" data-col="5" data-row="1" data-up-label="Volver a beneficios de nube">
+      <div class="frame-inner">
+        <span class="mode-banner cloud">Nube</span>
+        <h2 class="frame-title">Riesgos</h2>
+        <ul class="item-list cloud">
+          <li><span><b>Cada consulta sale de tu perímetro:</b> expone datos a un tercero y a su cadena de subprocesadores.</span></li>
+          <li><span><b>Sujeto a la jurisdicción</b> y legislación del proveedor, no solo a la tuya.</span></li>
+          <li><span><b>Los términos de uso y retención</b> pueden cambiar sin que lo decidas vos.</span></li>
+          <li><span><b>Dependencia operativa:</b> una caída del servicio, un tope de uso del proveedor o su discontinuación te afecta directo.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- COL 6 — Anonimización (row0: qué es, row1: beneficios y riesgos) -->
+    <section class="frame top" data-col="6" data-row="0" data-down-label="Ver beneficios y riesgos">
+      <div class="frame-inner">
+        <span class="mode-banner anon">Tercera vía</span>
+        <h2 class="frame-title">Capa de anonimización</h2>
+        <p class="frame-lede">Un paso intermedio: seguís usando modelos de la nube, pero nada sensible sale reconocible.</p>
+        <p class="subhead">Cuándo tiene sentido</p>
+        <ul class="note-list">
+          <li>Necesitás la capacidad de un modelo de frontera pero no podés correrlo local.</li>
+          <li>Podés identificar de antemano qué campos son sensibles (nombres, IDs, contacto, secretos).</li>
+          <li>La tarea no requiere que el modelo "sepa" quién es cada dato, solo el patrón o el contenido general.</li>
+        </ul>
+      </div>
+      <div class="branch-hint">
+        <span>Beneficios y riesgos</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </section>
+
+    <section class="frame top" data-col="6" data-row="1" data-up-label="Volver a la introducción">
+      <div class="frame-inner">
+        <span class="mode-banner anon">Tercera vía</span>
+        <h2 class="frame-title">Beneficios y riesgos</h2>
+        <p class="subhead">Beneficios</p>
+        <ul class="item-list anon">
+          <li><span><b>Reduce lo que un tercero puede ver</b>, sin resignar la capacidad del modelo.</span></li>
+          <li><span><b>Baja el impacto de una filtración</b> del lado del proveedor externo.</span></li>
+          <li><span><b>Es reutilizable:</b> la misma capa sirve para varios proveedores de nube.</span></li>
+        </ul>
+        <p class="subhead">Riesgos</p>
+        <ul class="item-list anon">
+          <li><span><b>Un falso negativo de detección</b> deja pasar datos sensibles igual.</span></li>
+          <li><span><b>Datos "anónimos" pueden re-identificarse</b> al cruzarlos con otra información.</span></li>
+          <li><span><b>Es un componente más</b> para versionar, mantener y auditar.</span></li>
+          <li><span><b>Puede dar falsa sensación de seguridad</b> si no se revisa seguido.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- COL 7 — Costos operativos -->
+    <section class="frame top" data-col="7" data-row="0">
+      <div class="frame-inner">
+        <p class="eyebrow">Después del deploy</p>
+        <h2 class="frame-title">El trabajo que sigue (no es dinero, son tareas)</h2>
+        <div class="ops-grid">
+          <div class="ops-col local">
+            <p class="ops-head">Local</p>
+            <ul>
+              <li>Parchear SO, drivers de GPU y runtime de inferencia.</li>
+              <li>Actualizar y re-evaluar el modelo cuando salen versiones nuevas.</li>
+              <li>Monitorear infraestructura: GPU, memoria, colas, latencia.</li>
+              <li>Gestionar capacidad: escalar (o no) según demanda, a mano.</li>
+              <li>Backups, endurecer la configuración del servidor (cerrar accesos y servicios que no se usan) y gestión de accesos.</li>
+              <li>Responder incidentes de seguridad sin soporte externo.</li>
+            </ul>
+          </div>
+          <div class="ops-col cloud">
+            <p class="ops-head">Nube</p>
+            <ul>
+              <li>Revisar y renovar el DPA y los términos de servicio.</li>
+              <li>Auditar logs de uso y accesos a la API.</li>
+              <li>Gestionar cuotas de uso y los frenos que aplica el proveedor cuando te pasás de ellas.</li>
+              <li>Estar atento a cuándo el proveedor discontinúa una versión del modelo/API, y migrar antes de esa fecha.</li>
+              <li>Controlar qué datos se envían (minimización, redacción previa).</li>
+              <li>Revisar la política de retención y subprocesadores del proveedor.</li>
+            </ul>
+          </div>
+          <div class="ops-col anon">
+            <p class="ops-head">Nube + anonimización</p>
+            <ul>
+              <li>Mantener y actualizar las reglas de detección de datos sensibles.</li>
+              <li>Medir la tasa de falsos negativos: qué se está dejando pasar.</li>
+              <li>Auditar que el proveedor reciba solo la versión enmascarada.</li>
+              <li>Gestionar el mapeo de reversión, si es pseudonimización.</li>
+              <li>Todo lo anterior de "Nube", además de esto.</li>
+            </ul>
+          </div>
+        </div>
+        <dl class="gloss">
+          <div><dt>DPA</dt> <dd>— Data Processing Agreement: contrato que regula cómo el proveedor trata tus datos personales.</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- COL 8 — Tabla resumen -->
+    <section class="frame top" data-col="8" data-row="0">
+      <div class="frame-inner">
+        <p class="eyebrow">Síntesis</p>
+        <h2 class="frame-title">Comparación rápida</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Dimensión</th><th class="col-local">Local</th><th class="col-cloud">Nube</th><th class="col-anon">Nube + anonimización</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="dim">Privacidad de los datos</td><td class="col-local">Alta — no sale del perímetro</td><td class="col-cloud">Depende del proveedor y el contrato</td><td class="col-anon">Media-alta — depende de qué tan bien anonimiza</td></tr>
+              <tr><td class="dim">Gobernanza</td><td class="col-local">Total, interna</td><td class="col-cloud">Compartida, contractual</td><td class="col-anon">Compartida + control propio sobre qué se envía</td></tr>
+              <tr><td class="dim">Capacidad del modelo</td><td class="col-local">Limitada por hardware propio</td><td class="col-cloud">Acceso a modelos de frontera</td><td class="col-anon">Acceso a modelos de frontera</td></tr>
+              <tr><td class="dim">Esfuerzo operativo</td><td class="col-local">Alto (infraestructura)</td><td class="col-cloud">Alto (gestión de proveedor)</td><td class="col-anon">Alto (infraestructura de anonimización + proveedor)</td></tr>
+              <tr><td class="dim">Funciona sin conexión</td><td class="col-local">Sí</td><td class="col-cloud">No</td><td class="col-anon">No</td></tr>
+              <tr><td class="dim">Costo marginal por uso</td><td class="col-local">Bajo, una vez amortizado</td><td class="col-cloud">Variable según consumo</td><td class="col-anon">Variable + costo de anonimizar</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="hybrid-note">En la práctica, muchos equipos combinan las tres vías: local para lo más sensible, anonimización para lo intermedio, nube directa para lo de bajo riesgo.</p>
+      </div>
+    </section>
+
+    <!-- COL 9 — Cierre -->
+    <section class="frame top" data-col="9" data-row="0">
+      <div class="frame-inner">
+        <p class="eyebrow">Para decidir</p>
+        <h2 class="frame-title">Preguntas antes de elegir</h2>
+        <ul class="checklist">
+          <li>¿Los datos que va a procesar el modelo son sensibles o están regulados?</li>
+          <li>¿Tenés (o podés tener) capacidad interna para operar infraestructura de IA?</li>
+          <li>¿Qué marco regulatorio aplica, y qué exige sobre residencia y auditoría de datos?</li>
+          <li>¿Necesitás la capacidad de los modelos de frontera, o alcanza con un modelo más chico?</li>
+          <li>¿Una capa de anonimización reduce el riesgo lo suficiente como para no necesitar todo local?</li>
+          <li>¿Qué pasa si el proveedor cambia sus términos, sube el precio o deja de estar disponible?</li>
+        </ul>
+        <p class="pull-line">No hay una respuesta única: la decisión correcta depende de qué dato estás dispuesto a exponer, en qué forma, y a quién.</p>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<button type="button" class="depth-pill js-down" hidden>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+  <span class="js-down-label">Profundizar</span>
+</button>
+<button type="button" class="depth-pill js-up" hidden style="bottom: 4.3rem;">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+  <span class="js-up-label">Volver</span>
+</button>
+
+<nav class="deck-nav">
+  <span class="nav-counter mono js-counter">Sección 01 / 10</span>
+  <div class="nav-dots js-dots"></div>
+  <div class="nav-buttons">
+    <button type="button" class="nav-btn is-map js-map">Mapa</button>
+    <button type="button" class="nav-btn js-prev">&larr; Anterior</button>
+    <button type="button" class="nav-btn js-next">Siguiente &rarr;</button>
+  </div>
+</nav>
+
+<script>
+(function () {
+  var viewport = document.querySelector('.js-viewport');
+  var canvas = document.querySelector('.js-canvas');
+  var frames = Array.prototype.slice.call(document.querySelectorAll('.frame'));
+  var counter = document.querySelector('.js-counter');
+  var progress = document.querySelector('.js-progress');
+  var dotsWrap = document.querySelector('.js-dots');
+  var prevBtn = document.querySelector('.js-prev');
+  var nextBtn = document.querySelector('.js-next');
+  var mapBtn = document.querySelector('.js-map');
+  var downPill = document.querySelector('.js-down');
+  var upPill = document.querySelector('.js-up');
+  var downLabel = document.querySelector('.js-down-label');
+  var upLabel = document.querySelector('.js-up-label');
+
+  var byKey = {};
+  var cols = [];
+  frames.forEach(function (f) {
+    var c = parseInt(f.dataset.col, 10);
+    var r = parseInt(f.dataset.row, 10);
+    byKey[c + ':' + r] = f;
+    f.style.setProperty('--fcol', c);
+    f.style.setProperty('--frow', r);
+    if (cols.indexOf(c) === -1) cols.push(c);
+  });
+  cols.sort(function (a, b) { return a - b; });
+  var numCols = cols[cols.length - 1] + 1;
+  var numRows = frames.reduce(function (m, f) { return Math.max(m, parseInt(f.dataset.row, 10)); }, 0) + 1;
+  canvas.style.setProperty('--numcols', numCols);
+  canvas.style.setProperty('--numrows', numRows);
+
+  var col = 0, row = 0, overview = false;
+
+  // Build one dot per top-level column
+  cols.forEach(function (c, i) {
+    var dot = document.createElement('button');
+    dot.type = 'button';
+    dot.className = 'nav-dot';
+    if (byKey[c + ':1']) dot.classList.add('has-branch');
+    dot.setAttribute('aria-label', 'Ir a la sección ' + (i + 1));
+    dot.addEventListener('click', function () { closeOverview(); goCol(c); });
+    dotsWrap.appendChild(dot);
+  });
+  var dots = dotsWrap.querySelectorAll('.nav-dot');
+
+  frames.forEach(function (f) {
+    f.addEventListener('click', function () {
+      if (!overview) return;
+      col = parseInt(f.dataset.col, 10);
+      row = parseInt(f.dataset.row, 10);
+      closeOverview();
+      render();
+    });
+  });
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function render() {
+    canvas.style.setProperty('--col', col);
+    canvas.style.setProperty('--row', row);
+
+    var idx = cols.indexOf(col);
+    counter.textContent = 'Sección ' + pad(idx + 1) + ' / ' + pad(cols.length) + (row > 0 ? ' · detalle' : '');
+    progress.style.width = (((idx + 1) / cols.length) * 100) + '%';
+
+    for (var i = 0; i < dots.length; i++) dots[i].classList.toggle('is-active', i === idx);
+    prevBtn.disabled = idx === 0;
+    nextBtn.disabled = idx === cols.length - 1;
+
+    var current = byKey[col + ':' + row];
+    frames.forEach(function (f) { f.classList.toggle('is-current', f === current); });
+
+    var downTarget = byKey[col + ':' + (row + 1)];
+    if (downTarget) {
+      downPill.hidden = false;
+      downLabel.textContent = current.dataset.downLabel || 'Profundizar';
+    } else {
+      downPill.hidden = true;
+    }
+    if (row > 0) {
+      upPill.hidden = false;
+      upLabel.textContent = current.dataset.upLabel || 'Volver';
+    } else {
+      upPill.hidden = true;
+    }
+  }
+
+  function goCol(target) {
+    if (byKey[target + ':0']) { col = target; row = 0; render(); }
+  }
+  function nextCol() { var i = cols.indexOf(col); if (i < cols.length - 1) goCol(cols[i + 1]); }
+  function prevCol() { var i = cols.indexOf(col); if (i > 0) goCol(cols[i - 1]); }
+  function goDown() {
+    if (byKey[col + ':' + (row + 1)]) { row += 1; render(); pulse(); }
+  }
+  function goUp() {
+    if (row > 0) { row -= 1; render(); pulse(); }
+  }
+  function pulse() {
+    viewport.classList.remove('is-diving');
+    void viewport.offsetWidth;
+    viewport.classList.add('is-diving');
+  }
+
+  var OVERVIEW_SCALE = 0.3;
+
+  function openOverview() {
+    overview = true;
+    viewport.classList.add('is-overview');
+    mapBtn.classList.add('is-active');
+
+    var tileW = window.innerWidth * OVERVIEW_SCALE;
+    var tileH = viewport.clientHeight * OVERVIEW_SCALE;
+    var canvasVisualH = numRows * tileH;
+
+    // translate() is applied after scale() here, so it's a plain, unscaled
+    // pixel offset — used to center the (usually shorter-than-viewport)
+    // scaled grid vertically instead of leaving it pinned to the top.
+    var ty = Math.max(0, (viewport.clientHeight - canvasVisualH) / 2);
+    canvas.style.transform = 'translate(0px,' + ty + 'px) scale(' + OVERVIEW_SCALE + ')';
+
+    viewport.scrollLeft = Math.max(0, col * tileW - (viewport.clientWidth - tileW) / 2);
+    viewport.scrollTop = canvasVisualH > viewport.clientHeight
+      ? Math.max(0, row * tileH - (viewport.clientHeight - tileH) / 2)
+      : 0;
+  }
+  function closeOverview() {
+    if (!overview) return;
+    overview = false;
+    viewport.classList.remove('is-overview');
+    mapBtn.classList.remove('is-active');
+    canvas.style.transform = '';
+    viewport.scrollLeft = 0;
+    viewport.scrollTop = 0;
+  }
+  function toggleOverview() { overview ? closeOverview() : openOverview(); render(); }
+
+  prevBtn.addEventListener('click', function () { closeOverview(); prevCol(); });
+  nextBtn.addEventListener('click', function () { closeOverview(); nextCol(); });
+  mapBtn.addEventListener('click', toggleOverview);
+  downPill.addEventListener('click', goDown);
+  upPill.addEventListener('click', goUp);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'o' || e.key === 'O') { toggleOverview(); return; }
+    if (e.key === 'Escape') { if (overview) { closeOverview(); render(); } return; }
+    if (overview) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { nextCol(); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { prevCol(); e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { goDown(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { goUp(); e.preventDefault(); }
+    else if (e.key === 'Home') { goCol(cols[0]); e.preventDefault(); }
+    else if (e.key === 'End') { goCol(cols[cols.length - 1]); e.preventDefault(); }
+  });
+
+  window.addEventListener('resize', function () { if (overview) closeOverview(); });
+
+  var touchStart = null;
+  canvas.addEventListener('touchstart', function (e) {
+    touchStart = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+  }, { passive: true });
+  canvas.addEventListener('touchend', function (e) {
+    if (!touchStart || overview) { touchStart = null; return; }
+    var dx = e.changedTouches[0].clientX - touchStart.x;
+    var dy = e.changedTouches[0].clientY - touchStart.y;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      closeOverview(); dx < 0 ? nextCol() : prevCol();
+    } else if (Math.abs(dy) > 50) {
+      dy < 0 ? goDown() : goUp();
+    }
+    touchStart = null;
+  }, { passive: true });
+
+  render();
+})();
+</script>
+</body>
+</html>
