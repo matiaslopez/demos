@@ -208,6 +208,15 @@
     color: var(--text-secondary);
     line-height: 1.4;
   }
+  .status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 6px;
+    flex: none;
+  }
+  .dot-good { background: var(--good); }
+  .dot-critical { background: var(--critical); }
   .oos-meta {
     margin-top: 4px;
     font-size: 12px;
@@ -303,10 +312,18 @@
     </section>
 
     <section class="card">
-      <h2>Fuera de servicio</h2>
+      <h2>Detalle de medios</h2>
       <div class="filters">
+        <select id="filter-estado">
+          <option value="fuera">Fuera de servicio</option>
+          <option value="func">Funcionando</option>
+          <option value="">Todos</option>
+        </select>
         <select id="filter-linea">
           <option value="">Todas las líneas</option>
+        </select>
+        <select id="filter-tipo">
+          <option value="">Todos los tipos</option>
         </select>
         <input type="search" id="filter-text" placeholder="Buscar estación o descripción&hellip;">
       </div>
@@ -329,6 +346,15 @@
   var API_URL = "https://aplicacioneswp.metrovias.com.ar/APIAccesibilidad/Accesibilidad.svc/GetLineas";
   var REFRESH_MS = 3 * 60 * 1000;
 
+  // Umbrales de criticidad (estándar absoluto/ideal, no relativo al histórico).
+  // % >= GOOD      -> "good"     (verde)
+  // % >= WARNING   -> "warning"  (ámbar)
+  // % <  WARNING   -> "critical" (rojo)
+  var THRESHOLDS = {
+    GOOD: 95,
+    WARNING: 85
+  };
+
   var TIPOS = {
     "0": "Ascensor",
     "1": "Escalera mecánica",
@@ -348,14 +374,14 @@
   }
 
   function statusClass(p) {
-    if (p >= 95) return "good";
-    if (p >= 85) return "warning";
+    if (p >= THRESHOLDS.GOOD) return "good";
+    if (p >= THRESHOLDS.WARNING) return "warning";
     return "critical";
   }
 
   function statusLabel(p) {
-    if (p >= 95) return "Buen funcionamiento";
-    if (p >= 85) return "Funcionamiento parcial";
+    if (p >= THRESHOLDS.GOOD) return "Buen funcionamiento";
+    if (p >= THRESHOLDS.WARNING) return "Funcionamiento parcial";
     return "Funcionamiento crítico";
   }
 
@@ -404,8 +430,9 @@
     var totalNum = 0, totalDen = 0;
     var lineas = []; // {nombre, num, den}
     var tipos = { "0": [0, 0], "1": [0, 0], "2": [0, 0] };
-    var outOfService = []; // {linea, estacion, nombre, descripcion, tipo, fecha}
+    var allAccesos = []; // {linea, estacion, nombre, descripcion, tipo, funcionando, fecha}
     var linesSeen = [];
+    var tiposSeen = [];
 
     data.forEach(function (linea) {
       var lNum = 0, lDen = 0;
@@ -415,19 +442,20 @@
           var tipo = String(acc.tipo);
           if (!tipos[tipo]) tipos[tipo] = [0, 0];
           tipos[tipo][1]++;
+          if (tiposSeen.indexOf(tipo) === -1) tiposSeen.push(tipo);
           if (acc.funcionando) {
             totalNum++; lNum++;
             tipos[tipo][0]++;
-          } else {
-            outOfService.push({
-              linea: linea.nombre,
-              estacion: est.nombre,
-              nombre: acc.nombre,
-              descripcion: acc.descripcion,
-              tipo: tipo,
-              fecha: parseAspDate(acc.fechaActualizacion)
-            });
           }
+          allAccesos.push({
+            linea: linea.nombre,
+            estacion: est.nombre,
+            nombre: acc.nombre,
+            descripcion: acc.descripcion,
+            tipo: tipo,
+            funcionando: !!acc.funcionando,
+            fecha: parseAspDate(acc.fechaActualizacion)
+          });
         });
       });
       lineas.push({ nombre: linea.nombre, num: lNum, den: lDen });
@@ -462,7 +490,7 @@
       }
     });
 
-    // Filtro de línea (una vez)
+    // Filtros de línea y tipo (una sola vez, cuando llega la primera respuesta)
     var filterLinea = document.getElementById("filter-linea");
     if (filterLinea.options.length === 1) {
       linesSeen.forEach(function (n) {
@@ -472,14 +500,23 @@
         filterLinea.appendChild(opt);
       });
     }
+    var filterTipo = document.getElementById("filter-tipo");
+    if (filterTipo.options.length === 1) {
+      tiposSeen.sort().forEach(function (t) {
+        var opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = TIPOS[t] || ("Tipo " + t);
+        filterTipo.appendChild(opt);
+      });
+    }
 
-    outOfService.sort(function (a, b) {
+    allAccesos.sort(function (a, b) {
       if (a.linea !== b.linea) return a.linea < b.linea ? -1 : 1;
       return a.estacion < b.estacion ? -1 : (a.estacion > b.estacion ? 1 : 0);
     });
 
-    window.__oosData = outOfService;
-    renderOosList();
+    window.__allAccesos = allAccesos;
+    renderDetailList();
 
     document.getElementById("updated-at").textContent =
       "última consulta " + new Date().toLocaleTimeString("es-AR");
@@ -490,14 +527,19 @@
     $footer.hidden = false;
   }
 
-  function renderOosList() {
+  function renderDetailList() {
     var list = document.getElementById("oos-list");
-    var data = window.__oosData || [];
+    var data = window.__allAccesos || [];
+    var estadoFilter = document.getElementById("filter-estado").value;
     var lineaFilter = document.getElementById("filter-linea").value;
+    var tipoFilter = document.getElementById("filter-tipo").value;
     var textFilter = document.getElementById("filter-text").value.trim().toLowerCase();
 
     var filtered = data.filter(function (item) {
+      if (estadoFilter === "fuera" && item.funcionando) return false;
+      if (estadoFilter === "func" && !item.funcionando) return false;
       if (lineaFilter && item.linea !== lineaFilter) return false;
+      if (tipoFilter && item.tipo !== tipoFilter) return false;
       if (textFilter) {
         var hay = (item.estacion + " " + item.descripcion + " " + item.nombre).toLowerCase();
         if (hay.indexOf(textFilter) === -1) return false;
@@ -509,9 +551,9 @@
     if (filtered.length === 0) {
       var empty = document.createElement("div");
       empty.className = "oos-empty";
-      empty.textContent = data.length === 0
-        ? "No hay medios fuera de servicio. Todo funcionando."
-        : "Ningún resultado con ese filtro.";
+      empty.textContent = (estadoFilter === "fuera" && !lineaFilter && !tipoFilter && !textFilter)
+        ? "No hay medios fuera de servicio en este momento."
+        : "Ningún resultado con esos filtros.";
       list.appendChild(empty);
       return;
     }
@@ -519,7 +561,7 @@
     filtered.forEach(function (item) {
       var el = document.createElement("div");
       el.className = "oos-item";
-      var shortLinea = item.linea.replace("Línea ", "Línea ");
+
       var top = document.createElement("div");
       top.className = "oos-top";
       var station = document.createElement("span");
@@ -527,20 +569,26 @@
       station.textContent = item.estacion;
       var lineaTag = document.createElement("span");
       lineaTag.className = "oos-linea";
-      lineaTag.textContent = shortLinea;
+      lineaTag.textContent = item.linea;
       top.appendChild(station);
       top.appendChild(lineaTag);
       el.appendChild(top);
 
       var desc = document.createElement("div");
       desc.className = "oos-desc";
-      desc.textContent = (TIPOS[item.tipo] || "Medio") + " — " + item.descripcion;
+      var dot = document.createElement("span");
+      dot.className = "status-dot " + (item.funcionando ? "dot-good" : "dot-critical");
+      desc.appendChild(dot);
+      desc.appendChild(document.createTextNode(
+        (TIPOS[item.tipo] || "Medio") + " — " + item.descripcion
+      ));
       el.appendChild(desc);
 
       if (item.fecha) {
         var meta = document.createElement("div");
         meta.className = "oos-meta";
-        meta.textContent = "Fuera de servicio desde " + relativeTime(item.fecha);
+        meta.textContent = (item.funcionando ? "En funcionamiento, actualizado " : "Fuera de servicio desde ") +
+          relativeTime(item.fecha);
         el.appendChild(meta);
       }
 
@@ -548,8 +596,10 @@
     });
   }
 
-  document.getElementById("filter-linea").addEventListener("change", renderOosList);
-  document.getElementById("filter-text").addEventListener("input", renderOosList);
+  document.getElementById("filter-estado").addEventListener("change", renderDetailList);
+  document.getElementById("filter-linea").addEventListener("change", renderDetailList);
+  document.getElementById("filter-tipo").addEventListener("change", renderDetailList);
+  document.getElementById("filter-text").addEventListener("input", renderDetailList);
 
   function showError(err) {
     $loading.hidden = true;
