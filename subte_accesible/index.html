@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Subte Accesible</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Porcentaje de ascensores y escaleras mecánicas en funcionamiento en el subte de Buenos Aires, en vivo.">
+<style>
+  :root {
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface-1:   #fcfcfb;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:    #e1e0d9;
+    --border:      rgba(11,11,11,0.10);
+    --track:       #e1e0d9;
+
+    --good:     #0ca30c;
+    --warning:  #b8790c;
+    --critical: #d03b3b;
+    --good-bg:     #e6f6e6;
+    --warning-bg:  #fdf1dc;
+    --critical-bg: #fbe7e7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page:        #0d0d0d;
+      --surface-1:   #1a1a19;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:    #2c2c2a;
+      --border:      rgba(255,255,255,0.10);
+      --track:       #2c2c2a;
+
+      --good:     #0ca30c;
+      --warning:  #d99a1f;
+      --critical: #e66767;
+      --good-bg:     #10240f;
+      --warning-bg:  #2b2210;
+      --critical-bg: #2b1414;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding-block: 24px 48px;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding-inline: 20px;
+  }
+
+  header { margin-bottom: 28px; }
+  header h1 {
+    font-size: 22px;
+    font-weight: 650;
+    margin: 0 0 4px;
+  }
+  header p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 16px;
+  }
+
+  /* Hero */
+  .hero { text-align: center; padding: 32px 22px; }
+  .hero .value {
+    font-size: 64px;
+    font-weight: 650;
+    line-height: 1;
+    font-variant-numeric: proportional-nums;
+    letter-spacing: -0.02em;
+  }
+  .hero .sub {
+    margin-top: 10px;
+    font-size: 15px;
+    color: var(--text-secondary);
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .status-pill .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex: none;
+  }
+  .status-good    { background: var(--good-bg);    color: var(--good); }
+  .status-warning { background: var(--warning-bg); color: var(--warning); }
+  .status-critical{ background: var(--critical-bg);color: var(--critical); }
+  .status-good .dot     { background: var(--good); }
+  .status-warning .dot  { background: var(--warning); }
+  .status-critical .dot { background: var(--critical); }
+
+  .hero .counts {
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Section headings */
+  h2 {
+    font-size: 13px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 0 0 14px;
+  }
+
+  /* Meter rows */
+  .meter-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .meter-row:last-child { border-bottom: none; }
+  .meter-label {
+    width: 96px;
+    flex: none;
+    font-size: 14px;
+    font-weight: 550;
+  }
+  .meter-track {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--track);
+    overflow: hidden;
+  }
+  .meter-fill { height: 100%; border-radius: 4px; }
+  .meter-value {
+    width: 82px;
+    flex: none;
+    text-align: right;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Out of service list */
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  select, input[type="search"] {
+    font: inherit;
+    font-size: 14px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--page);
+    color: var(--text-primary);
+  }
+  input[type="search"] { flex: 1; min-width: 140px; }
+
+  .oos-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .oos-item:last-child { border-bottom: none; }
+  .oos-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 14px;
+  }
+  .oos-station { font-weight: 600; }
+  .oos-linea {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .oos-desc {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+  .oos-meta {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .oos-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 20px 0;
+  }
+
+  /* Loading / error */
+  .state-box {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+  .spinner {
+    width: 22px; height: 22px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    border: 2.5px solid var(--gridline);
+    border-top-color: var(--text-secondary);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .retry-btn {
+    margin-top: 12px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--page);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .retry-btn:hover { border-color: var(--text-muted); }
+
+  footer {
+    margin-top: 28px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  footer a { color: inherit; }
+
+  @media (max-width: 420px) {
+    .hero .value { font-size: 52px; }
+    .meter-label { width: 76px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>Subte Accesible</h1>
+    <p>Estado en vivo de ascensores, escaleras mecánicas y salvaescaleras de la red de subte de Buenos Aires.</p>
+  </header>
+
+  <div id="loading" class="card state-box">
+    <div class="spinner"></div>
+    Consultando la API de accesibilidad de SBASE&hellip;
+  </div>
+
+  <div id="error" class="card state-box" hidden>
+    <div id="error-msg">No se pudo obtener el estado en este momento.</div>
+    <button class="retry-btn" id="retry-btn" type="button">Reintentar</button>
+  </div>
+
+  <main id="content" hidden>
+
+    <section class="card hero">
+      <div class="value" id="hero-value">&mdash;</div>
+      <div class="sub">de los medios de elevación están en funcionamiento</div>
+      <div id="hero-pill" class="status-pill"></div>
+      <div class="counts" id="hero-counts"></div>
+    </section>
+
+    <section class="card">
+      <h2>Por línea</h2>
+      <div id="lineas-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Por tipo de medio</h2>
+      <div id="tipos-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Fuera de servicio</h2>
+      <div class="filters">
+        <select id="filter-linea">
+          <option value="">Todas las líneas</option>
+        </select>
+        <input type="search" id="filter-text" placeholder="Buscar estación o descripción&hellip;">
+      </div>
+      <div id="oos-list"></div>
+    </section>
+
+  </main>
+
+  <footer id="footer" hidden>
+    Datos en vivo desde la <span id="updated-at"></span>&middot; se actualiza solo cada 3 minutos.<br>
+    Fuente: API pública de accesibilidad de SBASE / Emova.
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API_URL = "https://aplicacioneswp.metrovias.com.ar/APIAccesibilidad/Accesibilidad.svc/GetLineas";
+  var REFRESH_MS = 3 * 60 * 1000;
+
+  var TIPOS = {
+    "0": "Ascensor",
+    "1": "Escalera mecánica",
+    "2": "Salvaescalera"
+  };
+
+  var $loading = document.getElementById("loading");
+  var $error = document.getElementById("error");
+  var $errorMsg = document.getElementById("error-msg");
+  var $content = document.getElementById("content");
+  var $footer = document.getElementById("footer");
+
+  var lastData = null;
+
+  function pct(num, den) {
+    return den > 0 ? (100 * num / den) : 0;
+  }
+
+  function statusClass(p) {
+    if (p >= 95) return "good";
+    if (p >= 85) return "warning";
+    return "critical";
+  }
+
+  function statusLabel(p) {
+    if (p >= 95) return "Buen funcionamiento";
+    if (p >= 85) return "Funcionamiento parcial";
+    return "Funcionamiento crítico";
+  }
+
+  function parseAspDate(str) {
+    if (!str) return null;
+    var m = /\/Date\((-?\d+)/.exec(str);
+    if (!m) return null;
+    var d = new Date(parseInt(m[1], 10));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function relativeTime(date) {
+    if (!date) return "";
+    var diffMs = Date.now() - date.getTime();
+    var mins = Math.round(diffMs / 60000);
+    if (mins < 1) return "hace instantes";
+    if (mins < 60) return "hace " + mins + (mins === 1 ? " minuto" : " minutos");
+    var hours = Math.round(mins / 60);
+    if (hours < 24) return "hace " + hours + (hours === 1 ? " hora" : " horas");
+    var days = Math.round(hours / 24);
+    if (days < 30) return "hace " + days + (days === 1 ? " día" : " días");
+    return date.toLocaleDateString("es-AR");
+  }
+
+  function buildMeter(label, num, den) {
+    var p = pct(num, den);
+    var cls = statusClass(p);
+    var row = document.createElement("div");
+    row.className = "meter-row";
+    row.innerHTML =
+      '<div class="meter-label"></div>' +
+      '<div class="meter-track"><div class="meter-fill"></div></div>' +
+      '<div class="meter-value"></div>';
+    row.querySelector(".meter-label").textContent = label;
+    var fill = row.querySelector(".meter-fill");
+    fill.style.width = Math.max(p, den ? 2 : 0) + "%";
+    fill.style.background = "var(--" + cls + ")";
+    row.querySelector(".meter-value").textContent =
+      p.toFixed(1) + "% (" + num + "/" + den + ")";
+    return row;
+  }
+
+  function render(data) {
+    lastData = data;
+
+    var totalNum = 0, totalDen = 0;
+    var lineas = []; // {nombre, num, den}
+    var tipos = { "0": [0, 0], "1": [0, 0], "2": [0, 0] };
+    var outOfService = []; // {linea, estacion, nombre, descripcion, tipo, fecha}
+    var linesSeen = [];
+
+    data.forEach(function (linea) {
+      var lNum = 0, lDen = 0;
+      (linea.estaciones || []).forEach(function (est) {
+        (est.accesos || []).forEach(function (acc) {
+          totalDen++; lDen++;
+          var tipo = String(acc.tipo);
+          if (!tipos[tipo]) tipos[tipo] = [0, 0];
+          tipos[tipo][1]++;
+          if (acc.funcionando) {
+            totalNum++; lNum++;
+            tipos[tipo][0]++;
+          } else {
+            outOfService.push({
+              linea: linea.nombre,
+              estacion: est.nombre,
+              nombre: acc.nombre,
+              descripcion: acc.descripcion,
+              tipo: tipo,
+              fecha: parseAspDate(acc.fechaActualizacion)
+            });
+          }
+        });
+      });
+      lineas.push({ nombre: linea.nombre, num: lNum, den: lDen });
+      linesSeen.push(linea.nombre);
+    });
+
+    // Hero
+    var overallPct = pct(totalNum, totalDen);
+    var cls = statusClass(overallPct);
+    document.getElementById("hero-value").textContent = overallPct.toFixed(1) + "%";
+    var pill = document.getElementById("hero-pill");
+    pill.className = "status-pill status-" + cls;
+    pill.innerHTML = '<span class="dot"></span>' + statusLabel(overallPct);
+    document.getElementById("hero-counts").textContent =
+      totalNum + " de " + totalDen + " medios funcionando";
+
+    // Por línea
+    var lineasList = document.getElementById("lineas-list");
+    lineasList.innerHTML = "";
+    lineas.forEach(function (l) {
+      var shortName = l.nombre.replace("Línea ", "");
+      lineasList.appendChild(buildMeter(shortName, l.num, l.den));
+    });
+
+    // Por tipo
+    var tiposList = document.getElementById("tipos-list");
+    tiposList.innerHTML = "";
+    ["0", "1", "2"].forEach(function (t) {
+      var v = tipos[t];
+      if (v && v[1] > 0) {
+        tiposList.appendChild(buildMeter(TIPOS[t] || ("Tipo " + t), v[0], v[1]));
+      }
+    });
+
+    // Filtro de línea (una vez)
+    var filterLinea = document.getElementById("filter-linea");
+    if (filterLinea.options.length === 1) {
+      linesSeen.forEach(function (n) {
+        var opt = document.createElement("option");
+        opt.value = n;
+        opt.textContent = n;
+        filterLinea.appendChild(opt);
+      });
+    }
+
+    outOfService.sort(function (a, b) {
+      if (a.linea !== b.linea) return a.linea < b.linea ? -1 : 1;
+      return a.estacion < b.estacion ? -1 : (a.estacion > b.estacion ? 1 : 0);
+    });
+
+    window.__oosData = outOfService;
+    renderOosList();
+
+    document.getElementById("updated-at").textContent =
+      "última consulta " + new Date().toLocaleTimeString("es-AR");
+
+    $loading.hidden = true;
+    $error.hidden = true;
+    $content.hidden = false;
+    $footer.hidden = false;
+  }
+
+  function renderOosList() {
+    var list = document.getElementById("oos-list");
+    var data = window.__oosData || [];
+    var lineaFilter = document.getElementById("filter-linea").value;
+    var textFilter = document.getElementById("filter-text").value.trim().toLowerCase();
+
+    var filtered = data.filter(function (item) {
+      if (lineaFilter && item.linea !== lineaFilter) return false;
+      if (textFilter) {
+        var hay = (item.estacion + " " + item.descripcion + " " + item.nombre).toLowerCase();
+        if (hay.indexOf(textFilter) === -1) return false;
+      }
+      return true;
+    });
+
+    list.innerHTML = "";
+    if (filtered.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "oos-empty";
+      empty.textContent = data.length === 0
+        ? "No hay medios fuera de servicio. Todo funcionando."
+        : "Ningún resultado con ese filtro.";
+      list.appendChild(empty);
+      return;
+    }
+
+    filtered.forEach(function (item) {
+      var el = document.createElement("div");
+      el.className = "oos-item";
+      var shortLinea = item.linea.replace("Línea ", "Línea ");
+      var top = document.createElement("div");
+      top.className = "oos-top";
+      var station = document.createElement("span");
+      station.className = "oos-station";
+      station.textContent = item.estacion;
+      var lineaTag = document.createElement("span");
+      lineaTag.className = "oos-linea";
+      lineaTag.textContent = shortLinea;
+      top.appendChild(station);
+      top.appendChild(lineaTag);
+      el.appendChild(top);
+
+      var desc = document.createElement("div");
+      desc.className = "oos-desc";
+      desc.textContent = (TIPOS[item.tipo] || "Medio") + " — " + item.descripcion;
+      el.appendChild(desc);
+
+      if (item.fecha) {
+        var meta = document.createElement("div");
+        meta.className = "oos-meta";
+        meta.textContent = "Fuera de servicio desde " + relativeTime(item.fecha);
+        el.appendChild(meta);
+      }
+
+      list.appendChild(el);
+    });
+  }
+
+  document.getElementById("filter-linea").addEventListener("change", renderOosList);
+  document.getElementById("filter-text").addEventListener("input", renderOosList);
+
+  function showError(err) {
+    $loading.hidden = true;
+    $content.hidden = true;
+    $footer.hidden = true;
+    $error.hidden = false;
+    $errorMsg.textContent = "No se pudo obtener el estado en este momento. " +
+      "Puede ser un corte temporal de la API. (" + (err && err.message ? err.message : err) + ")";
+  }
+
+  function load() {
+    if (lastData === null) {
+      $loading.hidden = false;
+      $error.hidden = true;
+    }
+    fetch(API_URL, { cache: "no-store" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(render)
+      .catch(showError);
+  }
+
+  document.getElementById("retry-btn").addEventListener("click", load);
+
+  load();
+  setInterval(load, REFRESH_MS);
+})();
+</script>
+</body>
+</html>
