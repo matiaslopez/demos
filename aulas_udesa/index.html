@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Buscar clases</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+                   "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 24px;
+      font-size: 28px;
+    }
+
+    #search {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 18px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      outline: none;
+      background: white;
+    }
+
+    #search:focus {
+      border-color: #666;
+    }
+
+    #status {
+      margin-top: 12px;
+      color: #666;
+      font-size: 14px;
+    }
+
+    #results {
+      margin-top: 24px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 15px;
+    }
+
+    th,
+    td {
+      padding: 8px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 13px;
+      font-weight: 600;
+      color: #666;
+      background: #fafafa;
+      border-bottom: 1px solid #ddd;
+    }
+
+    td {
+      border-top: 1px solid #eee;
+    }
+
+    /* Separación más marcada al cambiar de día */
+    tr.new-day td {
+      border-top: 1px solid #ccc;
+    }
+
+    td.day {
+      font-weight: 600;
+    }
+
+    td.day,
+    td.slot,
+    td.time,
+    td.aula {
+      white-space: nowrap;
+    }
+
+    td.class-text {
+      font-family: monospace;
+      font-size: 14px;
+      overflow-wrap: anywhere;
+    }
+
+    .empty {
+      color: #666;
+      padding: 20px 0;
+    }
+
+    .error {
+      color: #a00;
+      background: #fee;
+      border: 1px solid #ecc;
+      padding: 12px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <main class="container">
+
+    <h1>Buscar clases</h1>
+
+    <input
+      id="search"
+      type="search"
+      placeholder="Escribí el nombre de la persona..."
+      autocomplete="off"
+      autofocus
+    >
+
+    <div id="status">Cargando datos...</div>
+
+    <div id="results"></div>
+
+  </main>
+
+  <script>
+
+    /*
+     * Google Sheets publicado
+     *
+     * Publicación:
+     * https://docs.google.com/spreadsheets/d/e/
+     * 2PACX-1vRTdQOT0t9n8BYZ4PJJcUqfHJGbZkFKStdg38nlZZC9jStGQYhTBAk3jBNwk9lNWIXVym5kGWzWjR_K/
+     * pubhtml
+     */
+
+    const PUBLISHED_ID =
+      "2PACX-1vRTdQOT0t9n8BYZ4PJJcUqfHJGbZkFKStdg38nlZZC9jStGQYhTBAk3jBNwk9lNWIXVym5kGWzWjR_K";
+
+    /*
+     * Endpoint CSV de la publicación.
+     */
+    const CSV_URL =
+      `https://docs.google.com/spreadsheets/d/e/${PUBLISHED_ID}/pub?output=csv`;
+
+    const searchInput = document.getElementById("search");
+    const resultsDiv = document.getElementById("results");
+    const statusDiv = document.getElementById("status");
+
+    let rows = [];
+
+    /*
+     * Horario de cada slot ("1" → "8 a 9:30").
+     * En la planilla sólo la primera fila de cada slot trae el horario.
+     */
+    let slotTimes = {};
+
+
+    /*
+     * Parser CSV sencillo.
+     *
+     * Google Sheets puede devolver valores entre comillas,
+     * incluyendo comas y saltos de línea dentro de las celdas.
+     */
+    function parseCSV(text) {
+      const result = [];
+      let row = [];
+      let value = "";
+      let insideQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"') {
+
+          if (insideQuotes && next === '"') {
+            value += '"';
+            i++;
+          } else {
+            insideQuotes = !insideQuotes;
+          }
+
+        } else if (char === "," && !insideQuotes) {
+
+          row.push(value);
+          value = "";
+
+        } else if ((char === "\n" || char === "\r") && !insideQuotes) {
+
+          if (char === "\r" && next === "\n") {
+            i++;
+          }
+
+          row.push(value);
+          result.push(row);
+
+          row = [];
+          value = "";
+
+        } else {
+
+          value += char;
+
+        }
+      }
+
+      // Último valor
+      if (value.length > 0 || row.length > 0) {
+        row.push(value);
+        result.push(row);
+      }
+
+      return result;
+    }
+
+
+    /*
+     * Carga la planilla.
+     */
+    async function loadSheet() {
+
+      try {
+
+        const response = await fetch(CSV_URL);
+
+        if (!response.ok) {
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}`
+          );
+        }
+
+        const csv = await response.text();
+
+        rows = parseCSV(csv);
+
+        if (rows.length < 4) {
+          throw new Error(
+            "La planilla no parece tener la estructura esperada."
+          );
+        }
+
+        slotTimes = {};
+
+        for (let r = 3; r < rows.length; r++) {
+          const match = (rows[r][2] ?? "").match(/^\s*(\d+)\s*-\s*\(?\s*(.*?)\s*\)?\s*$/);
+
+          if (match) {
+            slotTimes[match[1]] = match[2];
+          }
+        }
+
+        statusDiv.textContent =
+          `${rows.length - 3} filas cargadas`;
+
+        console.log("Datos cargados:", rows, slotTimes);
+
+        /*
+         * Si el usuario escribió algo mientras cargaba, buscar ya.
+         */
+        search();
+
+      } catch (error) {
+
+        console.error(error);
+
+        statusDiv.innerHTML = `
+          <div class="error">
+            No se pudieron cargar los datos de Google Sheets.
+            <br><br>
+            ${escapeHTML(error.message)}
+          </div>
+        `;
+      }
+    }
+
+
+    /*
+     * Normaliza texto para hacer la búsqueda:
+     *
+     * - minúsculas
+     * - elimina diferencias de mayúsculas
+     * - permite buscar Merlín / merlín / MERLÍN
+     */
+    function normalize(text) {
+      return text
+        .toLocaleLowerCase("es")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
+
+
+    /*
+     * Busca en las columnas D:H.
+     *
+     * La búsqueda se separa en palabras y cada una tiene que aparecer
+     * en algún lado (clase, aula o día), en cualquier orden:
+     * "I200 Teo" encuentra "I200 G:1 Teó.1"; "palau martes" filtra por día.
+     */
+    function search() {
+
+      const query = normalize(searchInput.value.trim());
+      const terms = query.split(/\s+/);
+
+      if (rows.length === 0) {
+        return;
+      }
+
+      resultsDiv.innerHTML = "";
+
+      if (!query) {
+        statusDiv.textContent =
+          `${rows.length - 3} filas cargadas`;
+        return;
+      }
+
+      /*
+       * La fila 3 de Sheets corresponde a índice 2.
+       */
+      const headers = rows[2];
+
+      const results = [];
+
+      /*
+       * Las filas de datos empiezan en la fila 4.
+       */
+      for (let r = 3; r < rows.length; r++) {
+
+        const row = rows[r];
+
+        /*
+         * Columnas:
+         *
+         * A = 0 → Aula
+         * B = 1 → Capacidad
+         * C = 2 → Slot
+         * D:H = 3:7 → días
+         */
+
+        const aula = row[0] ?? "";
+        const slotNumber = (row[2] ?? "").match(/\d+/)?.[0] ?? "";
+
+        /*
+         * Buscar en D:H.
+         */
+        for (let c = 3; c <= 7; c++) {
+
+          /*
+           * Se quita el "-NN" final (cantidad de estudiantes).
+           */
+          const cell = (row[c] ?? "").replace(/\s*-\s*\d+\s*$/, "");
+
+          if (!cell) {
+            continue;
+          }
+
+          const day = DAY_NAMES[headers[c]] ?? headers[c] ?? "";
+          const haystack = normalize(`${cell} ${aula} ${day}`);
+
+          if (terms.every(term => haystack.includes(term))) {
+
+            results.push({
+              dayIndex: c,
+              day: day,
+              slotNumber: Number(slotNumber),
+              slot: slotLabel(slotNumber),
+              aula: aula,
+              text: cell
+            });
+
+          }
+        }
+      }
+
+
+      /*
+       * Ordenar por día y después por horario.
+       */
+      results.sort((a, b) =>
+        a.dayIndex - b.dayIndex || a.slotNumber - b.slotNumber
+      );
+
+
+      /*
+       * Mostrar resultados.
+       */
+      if (results.length === 0) {
+
+        statusDiv.textContent = "";
+
+        resultsDiv.innerHTML = `
+          <div class="empty">
+            No se encontraron clases.
+          </div>
+        `;
+
+        return;
+      }
+
+
+      statusDiv.textContent =
+        results.length === 1
+          ? "1 coincidencia"
+          : `${results.length} coincidencias`;
+
+
+      let html = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Día</th>
+                <th>Slot</th>
+                <th>Horario</th>
+                <th>Aula</th>
+                <th>Clase</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      let previousDay = null;
+
+      for (const result of results) {
+
+        /*
+         * El día se muestra sólo en la primera fila de cada grupo.
+         */
+        const isNewDay = result.day !== previousDay;
+        previousDay = result.day;
+
+        html += `
+          <tr class="${isNewDay ? "new-day" : ""}">
+            <td class="day">${isNewDay ? escapeHTML(result.day) : ""}</td>
+            <td class="slot">${escapeHTML(result.slotNumber || "")}</td>
+            <td class="time">${escapeHTML(result.slot)}</td>
+            <td class="aula">${escapeHTML(result.aula)}</td>
+            <td class="class-text">${escapeHTML(result.text)}</td>
+          </tr>
+        `;
+      }
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      resultsDiv.innerHTML = html;
+    }
+
+
+    /*
+     * Nombres de días con tilde (la planilla dice "Miercoles").
+     */
+    const DAY_NAMES = {
+      "Miercoles": "Miércoles"
+    };
+
+
+    /*
+     * "1" → "8 a 9:30".
+     */
+    function slotLabel(slotNumber) {
+
+      const time = slotTimes[slotNumber];
+
+      return time ?? "";
+    }
+
+
+    /*
+     * Evita interpretar el contenido de las celdas como HTML.
+     */
+    function escapeHTML(text) {
+
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+
+    /*
+     * Buscar mientras se escribe.
+     */
+    searchInput.addEventListener("input", search);
+
+
+    /*
+     * Arrancar.
+     */
+    loadSheet();
+
+  </script>
+
+</body>
+</html>
